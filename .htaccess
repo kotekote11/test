@@ -1,1 +1,2 @@
-asdasd
+RewriteCond %{HTTP_HOST} ^www\.bistis\.ru$ [NC]
+RewriteRule ^(.*)$ http://bistis.ru/$1 [R=301,L]
