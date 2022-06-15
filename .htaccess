@@ -1,2 +1,3 @@
-RewriteCond %{HTTP_HOST} ^www\.bistis\.ru$ [NC]
-RewriteRule ^(.*)$ http://bistis.ru/$1 [R=301,L]
+RewriteEngine On
+RewriteCond %{HTTP_HOST} ^www\.(.*)$ [NC]
+RewriteRule ^(.*)$ http://%1/$1 [R=301,L]
