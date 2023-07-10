@@ -13,7 +13,7 @@ def text_message(update: Update, context: CallbackContext) -> None:
     # Отправляем пользователю его же сообщение в ответ
     update.message.reply_text(message_text)
 
-def main() -> None:
+#def main() -> None:
     # Создаем экземпляр класса Updater и передаем ему токен вашего бота
     updater = Updater('5700959339:AAEXSEfnjDg6zrl7bLUN1W_ISJtF6FiKd_0', use_context=True)
 
