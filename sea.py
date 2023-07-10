@@ -15,7 +15,7 @@ def text_message(update: Update, context: CallbackContext) -> None:
 
 #def main() -> None:
     # Создаем экземпляр класса Updater и передаем ему токен вашего бота
-    updater = Updater('5700959339:AAEXSEfnjDg6zrl7bLUN1W_ISJtF6FiKd_0', use_context=True)
+    updater = Updater('5818778889:AAGNDQOGIJBr4o7TVPZvFXNqFhD8egSd0Oo', use_context=True)
 
     # Получаем объект диспетчера для регистрации обработчиков
     dispatcher = updater.dispatcher
