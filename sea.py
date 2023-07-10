@@ -1,23 +1,13 @@
-from PIL import Image, ImageDraw
+import telebot
 
-# Создаем изображение размером 800x600 пикселей
-image = Image.new('RGB', (800, 600), (135, 206, 250))  # Используем цвет неба
+bot = telebot.TeleBot('5700959339:AAEXSEfnjDg6zrl7bLUN1W_ISJtF6FiKd_0')
 
-draw = ImageDraw.Draw(image)
+@bot.message_handler(commands=['start', 'help'])
+def send_welcome(message):
+    bot.reply_to(message, "Привет, я бот! Как я могу тебе помочь?")
 
-# Рисуем линию для песчаного берега
-draw.line([(0, 400), (800, 400)], fill=(238, 232, 170), width=200)
+@bot.message_handler(func=lambda message: True)
+def echo_all(message):
+    bot.reply_to(message, message.text)
 
-# Рисуем волны на море
-wave_color = (50, 100, 120)  # Используем цвет воды
-amplitude = 180  # Высота волн
-frequency = 140  # Частота волн
-
-for y in range(410, 600, 10):
-    draw.line([(0, y), (800, y)], fill=wave_color, width=2)
-    draw.line([(0, y + amplitude), (800, y + amplitude)], fill=wave_color, width=2)
-
-    amplitude *= -1  # Чтобы волны менялись
-
-# Сохраняем изображение
-image.save("sea.png")
+bot.polling()
