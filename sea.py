@@ -1,16 +1,35 @@
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+python
+from telegram import Update
+from telegram.ext import Updater, CommandHandler, CallbackContext
 
-updater = Updater(bot_token='5700959339:AAEXSEfnjDg6zrl7bLUN1W_ISJtF6FiKd_0', use_context=True)
-dispatcher = updater.dispatcher
+# Функция для обработки команды /start
+def start_command(update: Update, context: CallbackContext) -> None:
+    # Отправляем сообщение с приветствием пользователю
+    update.message.reply_text('Привет!')
 
-def handle_message(update, context):
-    text = update.message.text
-    if text == '/start':
-        context.bot.send_message(chat_id=update.effective_chat.id, text='Hello!')
-    else:
-        context.bot.send_message(chat_id=update.effective_chat.id, text='Received: ' + text)
+# Функция для обработки текстовых сообщений
+def text_message(update: Update, context: CallbackContext) -> None:
+    # Получаем текст сообщения, отправленного пользователем
+    message_text = update.message.text
+    # Отправляем пользователю его же сообщение в ответ
+    update.message.reply_text(message_text)
 
-message_handler = MessageHandler(Filters.text, handle_message)
-dispatcher.add_handler(message_handler)
+def main() -> None:
+    # Создаем экземпляр класса Updater и передаем ему токен вашего бота
+    updater = Updater('5700959339:AAEXSEfnjDg6zrl7bLUN1W_ISJtF6FiKd_0')
 
-updater.start_polling()
+    # Получаем объект диспетчера для регистрации обработчиков
+    dispatcher = updater.dispatcher
+
+    # Регистрируем обработчик команды /start с функцией start_command
+    dispatcher.add_handler(CommandHandler('start', start_command))
+
+    # Регистрируем обработчик для текстовых сообщений с функцией text_message
+    dispatcher.add_handler(MessageHandler(Filters.text, text_message))
+
+    # Запускаем бота
+    updater.start_polling()
+    updater.idle()
+
+if __name__ == '__main__':
+    main()
