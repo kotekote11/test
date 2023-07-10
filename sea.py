@@ -10,8 +10,8 @@ draw.line([(0, 400), (800, 400)], fill=(238, 232, 170), width=200)
 
 # Рисуем волны на море
 wave_color = (50, 100, 120)  # Используем цвет воды
-amplitude = 80  # Высота волн
-frequency = 40  # Частота волн
+amplitude = 180  # Высота волн
+frequency = 140  # Частота волн
 
 for y in range(410, 600, 10):
     draw.line([(0, y), (800, y)], fill=wave_color, width=2)
