@@ -21,7 +21,7 @@ def main() -> None:
     application.add_handler(CommandHandler('start', start_command))
 
     # Обработчик сообщений
-    application.add_handler(MessageHandler(filters.TEXT, handle_message))
+    application.add_handler(MessageHandler(filters.TEXT, text_message))
 
     # Запуск бота
     application.run_polling()
