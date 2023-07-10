@@ -1,5 +1,5 @@
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackContext
+from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackContext, Application, filters
 
 # Функция для обработки команды /start
 def start_command(update: Update, context: CallbackContext) -> None:
@@ -13,22 +13,18 @@ def text_message(update: Update, context: CallbackContext) -> None:
     # Отправляем пользователю его же сообщение в ответ
     update.message.reply_text(message_text)
 
-#def main() -> None:
-    # Создаем экземпляр класса Updater и передаем ему токен вашего бота
-    updater = Updater('5818778889:AAGNDQOGIJBr4o7TVPZvFXNqFhD8egSd0Oo', use_context=True)
-
-    # Получаем объект диспетчера для регистрации обработчиков
-    dispatcher = updater.dispatcher
+def main() -> None:
+    # Инициализация бота
+    application = Application.builder().token("5818778889:AAGNDQOGIJBr4o7TVPZvFXNqFhD8egSd0Oo").build()
 
     # Регистрируем обработчик команды /start с функцией start_command
-    dispatcher.add_handler(CommandHandler('start', start_command))
+    application.add_handler(CommandHandler('start', start_command))
 
-    # Регистрируем обработчик для текстовых сообщений с функцией text_message
-    dispatcher.add_handler(MessageHandler(Filters.text, text_message))
+    # Обработчик сообщений
+    application.add_handler(MessageHandler(filters.TEXT, handle_message))
 
-    # Запускаем бота
-    updater.start_polling()
-    updater.idle()
+    # Запуск бота
+    application.run_polling()
 
-#if __name__ == '__main__':
-#    main()
+if __name__ == '__main__':
+    main()
