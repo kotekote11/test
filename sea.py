@@ -1,11 +1,6 @@
-from telegram import UpdateQueue
-from telegram.ext import Updater
-
-# Создаем объект UpdateQueue
-queue = UpdateQueue()
-
-# Передаем объект UpdateQueue в конструктор Updater
-updater = Updater(token='5700959339:AAEXSEfnjDg6zrl7bLUN1W_ISJtF6FiKd_0', update_queue=queue)
+python
+from telegram import Update
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 
 # Функция для обработки команды /start
 def start_command(update: Update, context: CallbackContext) -> None:
