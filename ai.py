@@ -14,17 +14,19 @@ async def text_message(update, context):
     )
     await update.message.reply_text(response.choices[0].text)
 
-def main():
-    application = Application.builder().token("5818778889:AAGNDQOGIJBr4o7TVPZvFXNqFhD8egSd0Oo").build()
+#def main():
+application = Application.builder().token("5818778889:AAGNDQOGIJBr4o7TVPZvFXNqFhD8egSd0Oo").build()
 
 #updater = Updater(TELEGRAM_API_TOKEN, use_context=True)
 #dispatcher = updater.dispatcher
-application.add_handler(MessageHandler(filters.text & (filters.command), text_message))
+#application.add_handler(MessageHandler('filters.Text' & 'filters.Command', text_message))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_message))
    # Запуск бота
-#application.run_polling()
+application.run_polling()
 
-updater.start_polling()
-updater.idle()
+#updater.start_polling()
+#updater.idle()
 
-if __name__ == '__main__':
-    main()
+
+#if __name__ == '__main__':
+#    main()
