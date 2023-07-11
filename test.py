@@ -1,5 +1,5 @@
-from telegram import Update
-from telegram.ext import CommandHandler, MessageHandler, ContextTypes, Application, filters
+#from telegram import Update
+#from telegram.ext import CommandHandler, MessageHandler, ContextTypes, Application, filters
 import random
 
 
