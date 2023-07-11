@@ -1,5 +1,5 @@
-#from telegram import Update
-#from telegram.ext import CommandHandler, MessageHandler, ContextTypes, Application, filters
+from telegram import Update
+from telegram.ext import CommandHandler, MessageHandler, ContextTypes, Application, filters
 import random
 
 
@@ -30,7 +30,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     # Инициализация бота
-#    application = Application.builder().token("5818778889:AAGNDQOGIJBr4o7TVPZvFXNqFhD8egSd0Oo").build()
+    application = Application.builder().token("5818778889:AAGNDQOGIJBr4o7TVPZvFXNqFhD8egSd0Oo").build()
 
     # Обработчики команд
     application.add_handlers([
