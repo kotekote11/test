@@ -1,32 +1,57 @@
-#from telegram.ext import Updater, MessageHandler, Filters
-from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackContext, Application, filters
-import openai
+import time
 
-openai.api_key = "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"
-TELEGRAM_API_TOKEN = "6074730982:AAGKU2_gpogdkTQvmE4Ya63n9ot2dHVzA7I"
+import feedparser
+import telebot
 
-async def text_message(update, context):
-    response = openai.Completion.create(
-        engine="davinci",
-        prompt="Hello, world!",
-        max_tokens=5
-    )
-    await update.message.reply_text(response.choices[0].text)
+# Получите токен бота у @BotFather в Telegram
+bot_token = '6483504124:AAFnG1QAy6hamm5QRtkEQQgVGw24aLSZGgs'
 
-#def main():
-application = Application.builder().token("5818778889:AAGNDQOGIJBr4o7TVPZvFXNqFhD8egSd0Oo").build()
+# Создайте объект Telegram Bot
+#bot = telegram.Bot(token=bot_token)
+bot = telebot.TeleBot(token=bot_token)
+# Получите chat_id вашего телеграм-канала, в который хотите отправлять новости
+channel_chat_id = '@svodki_digest'
 
-#updater = Updater(TELEGRAM_API_TOKEN, use_context=True)
-#dispatcher = updater.dispatcher
-#application.add_handler(MessageHandler('filters.Text' & 'filters.Command', text_message))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_message))
-   # Запуск бота
-application.run_polling()
+# Получите URL RSS-ленты с новостями
+rss_feed_url = 'https://habr.com/ru/rss/flows/admin/news/?fl=ru'
 
-#updater.start_polling()
-#updater.idle()
+# Список запросов для фильтрации новостей
+search_queries = ['cloud', 'beeline']
 
+def send_news_to_channel(item):
+    # Извлеките заголовок и ссылку на новость из элемента RSS-ленты
+    news_title = item['description']
+    news_link = item['title']
+    
+    # Отправьте новость в телеграм-канал
+    bot.send_message(chat_id=channel_chat_id, text=f'{news_title}\n{news_link}')
 
-#if __name__ == '__main__':
-#    main()
+def process_news_feed():
+    try:
+        # Загрузите RSS-ленту
+        feed = feedparser.parse(rss_feed_url)
+        
+        # Проверьте, была ли лента успешно загружена
+        if feed.bozo == 0:
+            # Пройдитесь по каждой новости в ленте
+            for item in feed.entries:
+                # Проверьте каждую новость на наличие ключевых слов
+                for query in search_queries:
+                    if query.lower() in item.title.lower():
+                        # Отправьте новость в телеграм-канал
+                        send_news_to_channel(item)
+                        break
+            
+            print('News sent successfully.')
+            
+        else:
+            print('Failed to load RSS feed.')
+            
+    except Exception as e:
+        print('Exception:', e)
+
+# Бесконечный цикл для проверки новостей каждые 5 минут
+while True:
+    process_news_feed()
+    # Подождите 5 минут перед повторной проверкой
+    time.sleep(300)
