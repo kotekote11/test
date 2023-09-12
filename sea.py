@@ -15,7 +15,7 @@ async def text_message(update: Update, context: CallbackContext) -> None:
 
 def main():
     # Инициализация бота
-    application = Application.builder().token("518778889:AAGNDQOGIJBr4o7TVPZvFXNqFhD8egSd0Oo").build()
+    application = Application.builder().token("518778889:").build()
 
     # Регистрируем обработчик команды /start с функцией start_command
     application.add_handler(CommandHandler('start', start_command))
