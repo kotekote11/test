@@ -4,7 +4,7 @@ import feedparser
 import telebot
 
 # Получите токен бота у @BotFather в Telegram
-bot_token = '6483504124:AAFnG1QAy6hamm5QRtkEQQgVGw24aLSZGgs'
+bot_token = '6483504124:'
 
 # Создайте объект Telegram Bot
 #bot = telegram.Bot(token=bot_token)
