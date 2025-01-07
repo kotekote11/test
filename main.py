@@ -12,68 +12,70 @@ TELEGRAM_CHAT_ID = os.getenv("CHANNEL_ID")
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-# Keywords for news
+# Keywords for filtering news
 keywords = "новости доллар"
 
-# Function to send message via Telegram
+# Function to send a message via Telegram
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
         'chat_id': TELEGRAM_CHAT_ID,
         'text': message
     }
-    response = requests.post(url, json=payload)
+    response = requests.post(url, data=payload)
     return response.json()
 
-# Function to fetch news from Google
+# Function to fetch and parse news from DuckDuckGo
 def fetch_news():
-    url = "https://www.google.ru/search?q=" + keywords
+    url = "https://duckduckgo.com/"
     response = requests.get(url)
     soup = BeautifulSoup(response.content, 'html.parser')
     
-    # Extract news items (this part needs to be adapted to the actual HTML structure)
+    # Example parsing logic (this will vary depending on actual page structure)
     news = []
-    for item in soup.find_all('div', class_='BNeawe vvjwJb AP7Wnd'):
-        link = item.find_parent('a')['href']
-        title = item.get_text()
+    for item in soup.find_all('div', class_='news-item'):
+        title = item.find('h2').text
+        link = item.find('a')['href']
         news.append({'title': title, 'link': link})
     
     return news
 
-# Load sent news from a file
-def load_sent_news():
+# Function to load sent news from a JSON file
+def load_sent_news(file_path):
     try:
-        with open('sent_news.json', 'r', encoding='utf-8') as file:
+        with open(file_path, 'r') as file:
             return json.load(file)
     except FileNotFoundError:
         return []
 
-# Save sent news to a file
-def save_sent_news(sent_news):
-    with open('sent_news.json', 'w', encoding='utf-8') as file:
+# Function to save sent news to a JSON file
+def save_sent_news(file_path, sent_news):
+    with open(file_path, 'w') as file:
         json.dump(sent_news, file)
 
 def main():
-    sent_news = load_sent_news()
-    news = fetch_news()
-    
-    # Filter new news
-    new_news = [item for item in news if item['link'] not in sent_news]
-    
-    # Send new news via Telegram
-    for item in new_news:
-        message = f"Title: {item['title']}\nLink: {item['link']}"
-        send_telegram_message(message)
-        sent_news.append(item['link'])
-    
-    # Save updated sent news
-    save_sent_news(sent_news)
-    
-    logging.info(f"Sent {len(new_news)} new news items.")
-    
-    # Sleep for 200 seconds
-    time.sleep(200)
+    sent_news_file = 'sent_news.json'
+    sent_news = load_sent_news(sent_news_file)
+
+    while True:
+        logging.info("Fetching news...")
+        news = fetch_news()
+
+        # Filter new news items
+        new_news = [item for item in news if item['link'] not in sent_news]
+
+        for item in new_news:
+            if keywords in item['title']:
+                logging.info(f"Sending news: {item['title']}")
+                send_telegram_message(f"News: {item['title']}\nLink: {item['link']}")
+                sent_news.append(item['link'])
+
+        # Save the updated list of sent news
+        save_sent_news(sent_news_file, sent_news)
+
+        # Sleep for 200 seconds
+        logging.info("Sleeping for 200 seconds...")
+        time.sleep(200)
 
 if __name__ == "__main__":
-    while True:
-        main()
+    main()
