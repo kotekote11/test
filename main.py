@@ -6,13 +6,15 @@ import aiohttp
 import feedparser
 from aiogram import Bot, Dispatcher, types
 from aiogram.utils import executor
+import os
+BOT_TOKEN = os.getenv("API_TOKEN")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Bot token from @BotFather
-BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"
+#BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"
 HABR_RSS_URL = "https://habr.com/ru/rss/news/?fl=ru"
 
 # Initialize bot and dispatcher
