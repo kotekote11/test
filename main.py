@@ -1,100 +1,105 @@
 import logging
-import random
-import requests
-from bs4 import BeautifulSoup
 import json
+import random
 import time
-from datetime import datetime
-import os
-API_TOKEN = os.getenv("API_TOKEN")
-CHANNEL_ID = os.getenv("CHANNEL_ID")
-LOG_FILE = 'sent_news.json'
-BASE_URL = 'https://duckduckgo.com/'
+import aiohttp
+import feedparser
+from aiogram import Bot, Dispatcher, types
+from aiogram.utils import executor
 
-# Настройка логирования
+# Configure logging
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-def load_sent_news():
-    """Загружает отправленные новости из файла JSON."""
+# Bot token from @BotFather
+BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"
+HABR_RSS_URL = "https://habr.com/ru/rss/news/?fl=ru"
+
+# Initialize bot and dispatcher
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher(bot)
+
+# Store previously sent articles to avoid duplicates
+sent_articles = set()
+
+async def fetch_habr_news():
+    """Fetch and parse Habr RSS feed"""
     try:
-        with open(LOG_FILE, 'r') as file:
-            return json.load(file)
-    except FileNotFoundError:
+        feed = feedparser.parse(HABR_RSS_URL)
+        return feed.entries
+    except Exception as e:
+        logger.error(f"Error fetching RSS feed: {e}")
         return []
 
-def save_sent_news(sent_news):
-    """Сохраняет список отправленных новостей в файл JSON."""
-    with open(LOG_FILE, 'w') as file:
-        json.dump(sent_news, file)
+def format_article(article):
+    """Format article data for sending"""
+    return (f"📰 *{article.title}*\n\n"
+            f"{article.description}\n\n"
+            f"🔗 [Read more]({article.link})")
 
-def search_news(query):
-    """Поиск новостей на DuckDuckGo по заданному запросу."""
-    params = {'q': query}
-    response = requests.get(BASE_URL, params=params)
-    response.raise_for_status()
+@dp.message_handler(commands=['start'])
+async def send_welcome(message: types.Message):
+    """Handle /start command"""
+    await message.reply(
+        "👋 Welcome! I'm a Habr News Bot.\n"
+        "Use /news to get a random article from Habr."
+    )
 
-    soup = BeautifulSoup(response.text, 'html.parser')
-    news = []
-    
-    # Подгоните селекторы под HTML-структуру DuckDuckGo, если они изменятся
-    for item in soup.find_all('a', class_='result__link'):
-        title = item.get_text()
-        link = item['href']
-        news.append({'title': title, 'link': link})
-    
-    return news
-
-def send_message(text):
-    """Отправка сообщения в канал."""
-    url = f"https://api.telegram.org/bot{API_TOKEN}/sendMessage"
-    payload = {
-        'chat_id': CHANNEL_ID,
-        'text': text,
-        'parse_mode': 'HTML'  # Используйте HTML для форматирования
-    }
+@dp.message_handler(commands=['news'])
+async def send_random_news(message: types.Message):
+    """Handle /news command"""
     try:
-        response = requests.post(url, json=payload)
-        response.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Ошибка отправки сообщения: {e}")
+        articles = await fetch_habr_news()
+        if not articles:
+            await message.reply("Sorry, couldn't fetch news at the moment.")
+            return
 
-def send_random_news():
-    """Отправляет одну случайную новость в канал."""
-    sent_news = load_sent_news()
-    today_date = datetime.now().strftime("%d.%m.%Y")
+        # Filter out previously sent articles
+        available_articles = [a for a in articles if a.link not in sent_articles]
+        
+        if not available_articles:
+            sent_articles.clear()  # Reset if all articles have been sent
+            available_articles = articles
 
-    # Формируем ключевые слова для поиска
-    keywords = [
-        f"фонтан ростов {today_date}",
-        f"фонтан строительство {today_date}"
-    ]
+        article = random.choice(available_articles)
+        sent_articles.add(article.link)
 
-    news = []
-    for keyword in keywords:
-        news += search_news(keyword)
+        await message.reply(
+            format_article(article),
+            parse_mode=types.ParseMode.MARKDOWN,
+            disable_web_page_preview=False
+        )
 
-    # Фильтруем новости, которые уже были отправлены
-    new_news = [item for item in news if item['link'] not in sent_news]
+    except Exception as e:
+        logger.error(f"Error sending news: {e}")
+        await message.reply("Sorry, an error occurred while processing your request.")
 
-    if new_news:
-        random_news = random.choice(new_news)
-        title = random_news['title']
-        link = random_news['link']
-
-        # Формируем текст сообщения
-        message_text = f"<b>{title}</b>\n{link}"
-
-        # Отправка сообщения
-        send_message(message_text)
-
-        # Добавление в список отправленных новостей
-        sent_news.append(link)
-        save_sent_news(sent_news)
-        logging.info(f"Отправлена новость: {title}")
-    else:
-        logging.info("Нет новых новостей для отправки.")
+async def scheduled_news():
+    """Function to send periodic updates"""
+    while True:
+        try:
+            articles = await fetch_habr_news()
+            if articles:
+                article = random.choice(articles)
+                # Replace CHANNEL_ID with your channel's ID
+                await bot.send_message(
+                    chat_id="CHANNEL_ID",
+                    text=format_article(article),
+                    parse_mode=types.ParseMode.MARKDOWN,
+                    disable_web_page_preview=False
+                )
+        except Exception as e:
+            logger.error(f"Error in scheduled news: {e}")
+        
+        await asyncio.sleep(200)  # Wait for 200 seconds
 
 if __name__ == '__main__':
-    while True:
-        send_random_news()
-        time.sleep(200)  # Пауза перед следующим запросом
+    from aiogram import executor
+    import asyncio
+    
+    # Start scheduled task
+    loop = asyncio.get_event_loop()
+    loop.create_task(scheduled_news())
+    
+    # Start polling
+    executor.start_polling(dp, skip_updates=True)
