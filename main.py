@@ -1,64 +1,74 @@
 import requests
-
 from bs4 import BeautifulSoup
-
-import json
-
 import logging
-
+import json
 import time
 import os
-
-YOUR_BOT_TOKEN = os.getenv("API_TOKEN")
-
-YOUR_CHAT_ID = os.getenv("CHANNEL_ID")
-# Настройка логирования
-
+BOT_TOKEN = os.getenv("API_TOKEN")
+CHAT_ID = os.getenv("CHANNEL_ID")
+# Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-# Загрузка уже отправленных новостей
-
-try:
-
-    with open('sent_news.json', 'r') as file:
-
-        sent_news = json.load(file)
-
-except FileNotFoundError:
-
-    sent_news = []
-
-# Поиск новостей по ключевым словам
-
+# Keywords to search for
 keywords = "новости доллар"
 
-url = "https://www.google.ru/search?q=" + keywords
+# File to store sent news
+SENT_NEWS_FILE = 'sent_news.json'
 
-response = requests.get(url)
+# Function to send message via Telegram bot
+def send_telegram_message(message):
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    payload = {
+        'chat_id': CHAT_ID,
+        'text': message
+    }
+    response = requests.post(url, data=payload)
+    return response.json()
 
-soup = BeautifulSoup(response.text, 'html.parser')
+# Function to load sent news from file
+def load_sent_news():
+    try:
+        with open(SENT_NEWS_FILE, 'r') as file:
+            return json.load(file)
+    except FileNotFoundError:
+        return []
 
-# Парсинг новостей
-
-news = [{'title': item.text, 'link': item['href']} for item in soup.find_all('a', href=True) if 'http' in item['href']]
-
-new_news = [item for item in news if item['link'] not in sent_news]
-
-# Отправка новых новостей в Telegram
-
-if new_news:
-
-    for item in new_news:
-
-        requests.get(f"https://api.telegram.org/bot<YOUR_BOT_TOKEN>/sendMessage?chat_id=<YOUR_CHAT_ID>&text={item['title']} {item['link']}")
-
-        sent_news.append(item['link'])
-
-    with open('sent_news.json', 'w') as file:
-
+# Function to save sent news to file
+def save_sent_news(sent_news):
+    with open(SENT_NEWS_FILE, 'w') as file:
         json.dump(sent_news, file)
 
-# Пауза перед следующим запросом
+# Function to scrape news
+def scrape_news():
+    url = "https://www.google.ru/search?q=" + keywords.replace(" ", "+")
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, 'html.parser')
 
-time.sleep(200)
+    # Example: Extract news titles and links (adjust according to actual HTML structure)
+    news = []
+    for item in soup.find_all('div', class_='news_item_class'):  # Adjust class name
+        title = item.find('h3').text
+        link = item.find('a')['href']
+        news.append({'title': title, 'link': link})
+
+    return news
+
+# Main loop
+def main():
+    sent_news = load_sent_news()
+
+    while True:
+        news = scrape_news()
+        new_news = [item for item in news if item['link'] not in sent_news]
+
+        for item in new_news:
+            message = f"{item['title']}\\n{item['link']}"
+            send_telegram_message(message)
+            sent_news.append(item['link'])
+            save_sent_news(sent_news)
+            logging.info(f"Sent news: {item['title']}")
+
+        time.sleep(200)  # Wait for 200 seconds before next iteration
+
+if __name__ == "__main__":
+    main()
 
