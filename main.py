@@ -7,36 +7,30 @@ import time
 import os
 
 API_TOKEN = os.getenv("API_TOKEN")
+
 CHANNEL_ID = os.getenv("CHANNEL_ID")
-LOG_FILE = 'sent_news.json'
-GOOGLE_SEARCH_URL = 'https://www.google.com/search?q={}'
+LOG_FILE = 'sent_news.json'  # Файл для сохранения отправленных новостей
+GOOGLE_SEARCH_URL = 'https://www.google.ru/search?q={}'
 
 # Настройка логирования
-logger = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s %(levelname)-8s %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
-    handlers=[logging.FileHandler('news_bot.log'), logging.StreamHandler()]
-)
+logging.basicConfig(level=logging.INFO)
 
 def load_sent_news():
     """Загружает отправленные новости из файла JSON."""
     try:
-        with open(LOG_FILE, 'r', encoding='utf-8') as file:
+        with open(LOG_FILE, 'r') as file:
             return json.load(file)
     except FileNotFoundError:
-        logger.warning(f"Файл {LOG_FILE} не найден. Создаю новый...")
         return []
 
 def save_sent_news(sent_news):
     """Сохраняет список отправленных новостей в файл JSON."""
-    with open(LOG_FILE, 'w', encoding='utf-8') as file:
+    with open(LOG_FILE, 'w') as file:
         json.dump(sent_news, file)
 
 def search_news(query):
     """Поиск новостей на Google по заданному запросу."""
-    response = requests.get(GOOGLE_SEARCH_URL.format(query), headers={'User-Agent': 'Mozilla/5.0'})
+    response = requests.get(GOOGLE_SEARCH_URL.format(query))
     response.raise_for_status()
 
     soup = BeautifulSoup(response.text, 'html.parser')
@@ -50,19 +44,6 @@ def search_news(query):
 
     return news
 
-def check_link_validity(link):
-    """Проверяет доступность ссылки."""
-    try:
-        response = requests.head(link, timeout=10)
-        if response.status_code < 400:
-            return True
-        else:
-            logger.warning(f"Ссылка {link} возвращает статус-код {response.status_code}. Ссылка недействительна.")
-            return False
-    except Exception as e:
-        logger.exception(f"Произошла ошибка при проверке доступности ссылки {link}: {str(e)}")
-        return False
-
 def send_message(text):
     """Отправка сообщения в канал."""
     url = f"https://api.telegram.org/bot{API_TOKEN}/sendMessage"
@@ -75,7 +56,7 @@ def send_message(text):
         response = requests.post(url, json=payload)
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
-        logger.error(f"Ошибка отправки сообщения: {e}")
+        logging.error(f"Ошибка отправки сообщения: {e}")
 
 def send_random_news():
     """Отправляет одну случайную новость в канал."""
@@ -92,23 +73,19 @@ def send_random_news():
         random_news = random.choice(new_news)
         title = random_news['title']
         link = random_news['link']
-        
-        # Проверяем работоспособность ссылки
-        if check_link_validity(link):
-            # Формируем текст сообщения
-            message_text = f"<b>{title}</b>\n{link}"
 
-            # Отправка сообщения
-            send_message(message_text)
+        # Формируем текст сообщения
+        message_text = f"<b>{title}</b>\n{link}"
 
-            # Добавляем в список отправленных новостей
-            sent_news.append(link)
-            save_sent_news(sent_news)
-            logger.info(f"Отправлена новость: {title}")
-        else:
-            logger.warning(f"Новость '{title}' имеет недействительную ссылку. Пропускаю...")
+        # Отправка сообщения
+        send_message(message_text)
+
+        # Добавление в список отправленных новостей
+        sent_news.append(link)
+        save_sent_news(sent_news)
+        logging.info(f"Отправлена новость: {title}")
     else:
-        logger.info("Нет новых новостей для отправки.")
+        logging.info("Нет новых новостей для отправки.")
 
 if __name__ == '__main__':
     while True:
