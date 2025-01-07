@@ -1,107 +1,90 @@
+import requests
+from bs4 import BeautifulSoup
 import logging
 import json
-import random
 import time
-import aiohttp
-import feedparser
-from aiogram import Bot, Dispatcher, types
-from aiogram.utils import executor
 import os
-BOT_TOKEN = os.getenv("API_TOKEN")
+TELEGRAM_TOKEN = os.getenv("token")
+CHAT_ID = os.getenv("id_channel")
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Настроим логирование
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Bot token from @BotFather
-#BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"
-HABR_RSS_URL = "https://habr.com/ru/rss/news/?fl=ru"
+# Конфигурация Telegram
+TELEGRAM_TOKEN = 'YOUR_TELEGRAM_TOKEN'  # Укажите ваш токен Telegram
+CHAT_ID = 'YOUR_CHAT_ID'  # Ваш chat ID
 
-# Initialize bot and dispatcher
-bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(bot)
+# Файл для хранения отправленных новостей
+SENT_NEWS_FILE = 'sent_news.json'
 
-# Store previously sent articles to avoid duplicates
-sent_articles = set()
+# Ключевые слова для поиска
+SEARCH_TERMS = ['новости недвижимости', 'новости доллар']
 
-async def fetch_habr_news():
-    """Fetch and parse Habr RSS feed"""
+# Загрузка отправленных новостей из файла
+def load_sent_news():
     try:
-        feed = feedparser.parse(HABR_RSS_URL)
-        return feed.entries
-    except Exception as e:
-        logger.error(f"Error fetching RSS feed: {e}")
+        with open(SENT_NEWS_FILE, 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
         return []
 
-def format_article(article):
-    """Format article data for sending"""
-    return (f"📰 *{article.title}*\n\n"
-            f"{article.description}\n\n"
-            f"🔗 [Read more]({article.link})")
+# Сохранение отправленных новостей в файл
+def save_sent_news(sent_news):
+    with open(SENT_NEWS_FILE, 'w') as f:
+        json.dump(sent_news, f)
 
-@dp.message_handler(commands=['start'])
-async def send_welcome(message: types.Message):
-    """Handle /start command"""
-    await message.reply(
-        "👋 Welcome! I'm a Habr News Bot.\n"
-        "Use /news to get a random article from Habr."
-    )
+# Отправка сообщения в Telegram
+def send_telegram_message(message):
+    url = f'https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage'
+    data = {'chat_id': CHAT_ID, 'text': message, 'parse_mode': 'HTML'}
+    response = requests.post(url, data=data)
+    return response.json()
 
-@dp.message_handler(commands=['news'])
-async def send_random_news(message: types.Message):
-    """Handle /news command"""
-    try:
-        articles = await fetch_habr_news()
-        if not articles:
-            await message.reply("Sorry, couldn't fetch news at the moment.")
-            return
+# Поиск новостей
+def search_news():
+    today = time.strftime('%Y-%m-%d')
+    query = '+'.join(SEARCH_TERMS) + f'+{today}'
+    url = f'https://www.google.ru/search?q={query}'
 
-        # Filter out previously sent articles
-        available_articles = [a for a in articles if a.link not in sent_articles]
-        
-        if not available_articles:
-            sent_articles.clear()  # Reset if all articles have been sent
-            available_articles = articles
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, 'html.parser')
 
-        article = random.choice(available_articles)
-        sent_articles.add(article.link)
+    # Находим все ссылки на результаты поиска
+    news_links = []
+    for item in soup.find_all('div', class_='BVG0Nb'):
+        link = item.find('a')
+        if link and link.get('href'):
+            news_links.append(link.get('href'))
 
-        await message.reply(
-            format_article(article),
-            parse_mode=types.ParseMode.MARKDOWN,
-            disable_web_page_preview=False
-        )
+    return news_links
 
-    except Exception as e:
-        logger.error(f"Error sending news: {e}")
-        await message.reply("Sorry, an error occurred while processing your request.")
+# Главная логика работы
+def main():
+    sent_news = load_sent_news()
+    
+    news_links = search_news()
+    logging.info(f'Найдено {len(news_links)} новостей.')
 
-async def scheduled_news():
-    """Function to send periodic updates"""
+    # Фильтруем ссылки, которые уже были отправлены
+    new_news_links = [link for link in news_links if link not in sent_news]
+
+    if new_news_links:
+        # Выбор случайной новости
+        selected_news = new_news_links[0]  # Отправим первую новость для примера
+        message = f'Новая новость: {selected_news}'
+
+        # Отправляем сообщение в Telegram
+        response = send_telegram_message(message)
+        if response.get('ok'):
+            logging.info(f'Отправлено: {selected_news}')
+            sent_news.append(selected_news)
+            save_sent_news(sent_news)
+        else:
+            logging.error(f'Ошибка отправки: {response}')
+    else:
+        logging.info('Нет новых новостей для отправки.')
+
+if __name__ == "__main__":
     while True:
-        try:
-            articles = await fetch_habr_news()
-            if articles:
-                article = random.choice(articles)
-                # Replace CHANNEL_ID with your channel's ID
-                await bot.send_message(
-                    chat_id="CHANNEL_ID",
-                    text=format_article(article),
-                    parse_mode=types.ParseMode.MARKDOWN,
-                    disable_web_page_preview=False
-                )
-        except Exception as e:
-            logger.error(f"Error in scheduled news: {e}")
-        
-        await asyncio.sleep(200)  # Wait for 200 seconds
-
-if __name__ == '__main__':
-    from aiogram import executor
-    import asyncio
-    
-    # Start scheduled task
-    loop = asyncio.get_event_loop()
-    loop.create_task(scheduled_news())
-    
-    # Start polling
-    executor.start_polling(dp, skip_updates=True)
+        main()
+        time.sleep(200)  # Подождите 200 секунд перед следующим запросом
