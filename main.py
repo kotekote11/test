@@ -12,7 +12,7 @@ CHAT_ID = os.getenv("CHANNEL_ID")
 logging.basicConfig(level=logging.INFO)
 
 # Конфигурация Telegram API
-TELEGRAM_API_URL = 'https://api.telegram.org/bot<YOUR_BOT_TOKEN>/sendMessage'
+TELEGRAM_API_URL = 'https://api.telegram.org/bot{YOUR_BOT_TOKEN}/sendMessage'
 
 # Функция для отправки сообщения в Telegram
 def send_telegram_message(message):
