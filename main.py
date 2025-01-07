@@ -4,9 +4,8 @@ import logging
 import json
 import time
 import os
-TELEGRAM_TOKEN = os.getenv("token")
-CHAT_ID = os.getenv("id_channel")
-
+TELEGRAM_TOKEN = os.getenv("API_TOKEN")
+CHAT_ID = os.getenv("CHANNEL_ID")
 # Настроим логирование
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
