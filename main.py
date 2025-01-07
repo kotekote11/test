@@ -1,91 +1,73 @@
-import asyncio
+import requests
+from bs4 import BeautifulSoup
 import json
 import logging
-import os
-import random
 import time
-from bs4 import BeautifulSoup
-import requests
-from aiogram import Bot, Dispatcher, types
-from aiogram.utils import executor
+import os
 
-telegram_api_key = os.getenv("API_TOKEN")
+YOUR_BOT_TOKEN = os.getenv("API_TOKEN")
 
-#CHANNEL_ID = os.getenv("CHANNEL_ID")
-# Включить уровень логирования DEBUG
-logging.basicConfig(level=logging.DEBUG)
+CHAT_ID = os.getenv("CHANNEL_ID")
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
 
-# Создать бота
-with open('settings.json') as f:
-    settings = json.loads(f.read())
-bot = Bot(token=settings['telegram_api_key'])
-dp = Dispatcher(bot)
+# Конфигурация Telegram API
+TELEGRAM_API_URL = 'https://api.telegram.org/bot<YOUR_BOT_TOKEN>/sendMessage'
 
-# Список отправленных новостей
-sent_news = []
+# Функция для отправки сообщения в Telegram
+def send_telegram_message(message):
+    payload = {
+        'chat_id': CHAT_ID,
+        'text': message
+    }
+    response = requests.post(TELEGRAM_API_URL, json=payload)
+    if response.status_code == 200:
+        logging.info("Сообщение отправлено в Telegram.")
+    else:
+        logging.error("Ошибка при отправке сообщения: %s", response.text)
 
-# Обработчик команды /start
-@dp.message_handler(commands=['start'])
-async def cmd_start(message: types.Message):
-    await message.answer("Привет! Я буду присылать тебе новости по заданному запросу.")
-    await message.answer("Введи поисковый запрос:")
-
-# Обработчик текстовых сообщений
-@dp.message_handler()
-async def text_message_handler(message: types.Message):
-    # Получить поисковый запрос
-    query = message.text
-
-    # Получить новости по запросу
-    news = get_news(query)
-
-    # Отфильтровать новые новости
-    new_news = [item for item in news if item['link'] not in sent_news]
-
-    # Отправить новые новости пользователю
-    for item in new_news:
-        await bot.send_message(message.chat.id, f"{item['title']}\n{item['link']}")
-
-    # Обновить список отправленных новостей
-    sent_news.extend([item['link'] for item in new_news])
-
-    # Сохранить список отправленных новостей в файл
-    with open('sent_news.json', 'w') as file:
-        json.dump(sent_news, file)
-
-# Функция для получения новостей по запросу
-def get_news(query):
-    # Сформировать URL-адрес запроса
-    url = f"https://www.google.ru/search?q={query}"
-
-    # Отправить запрос и получить ответ
+# Функция для парсинга новостей
+def parse_news():
+    url = 'https://www.google.ru/search?q=новости+доллар'
     response = requests.get(url)
-
-    # Проверить код ответа
-    if response.status_code != 200:
-        raise Exception("Ошибка при получении новости")
-
-    # Распарсить HTML-ответ
     soup = BeautifulSoup(response.text, 'html.parser')
 
-    # Найти результаты поиска
-    results = soup.find_all('div', class_='g')
+    news_items = []
+    for item in soup.find_all('div', class_='BVG0Nb'):
+        title = item.get_text()
+        link = item.find('a')['href']
+        news_items.append({'title': title, 'link': link})
 
-    # Извлечь заголовки и ссылки на новости
-    news = []
-    for result in results:
-        title = result.find('h3').text
-        link = result.find('a')['href']
-        news.append({'title': title, 'link': link})
+    return news_items
 
-    # Вернуть список новостей
-    return news
+# Загрузка ранее отправленных новостей
+def load_sent_news(filename='sent_news.json'):
+    try:
+        with open(filename, 'r') as file:
+            return json.load(file)
+    except FileNotFoundError:
+        return []
 
-# Загрузить список отправленных новостей из файла
-if os.path.isfile('sent_news.json'):
-    with open('sent_news.json') as file:
-        sent_news = json.load(file)
+# Сохранение отправленных новостей
+def save_sent_news(sent_news, filename='sent_news.json'):
+    with open(filename, 'w') as file:
+        json.dump(sent_news, file)
 
-# Запустить цикл обработки сообщений
-if __name__ == '__main__':
-    executor.start_polling(dp, skip_updates=True)
+# Основная функция
+def main():
+    sent_news = load_sent_news()
+    
+    while True:
+        news = parse_news()
+        new_news = [item for item in news if item['link'] not in sent_news]
+
+        for item in new_news:
+            message = f"Новая новость: {item['title']} \nСсылка: {item['link']}"
+            send_telegram_message(message)
+            sent_news.append(item['link'])  # Добавляем ссылку в список отправленных новостей
+
+        save_sent_news(sent_news)  # Сохраняем обновленный список отправленных новостей
+        time.sleep(200)  # Ждем 200 секунд перед следующей проверкой
+
+if __name__ == "__main__":
+    main()
