@@ -5,9 +5,9 @@ from bs4 import BeautifulSoup
 import json
 import time
 from datetime import datetime
-
-API_TOKEN = 'YOUR_BOT_TOKEN'
-CHANNEL_ID = '@YOUR_CHANNEL_ID'
+import os
+API_TOKEN = os.getenv("API_TOKEN")
+CHANNEL_ID = os.getenv("CHANNEL_ID")
 LOG_FILE = 'sent_news.json'
 BASE_URL = 'https://duckduckgo.com/'
 
