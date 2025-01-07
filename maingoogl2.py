@@ -7,13 +7,8 @@ import os
 TELEGRAM_BOT_TOKEN = os.getenv("API_TOKEN")
 CHAT_ID = os.getenv("CHANNEL_ID")
 # Настройка логгирования
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
-# Ваши данные для работы с Telegram Bot API
-#TELEGRAM_BOT_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'
-#CHAT_ID = 'YOUR_CHAT_ID'  # ID чата, куда будут отправляться сообщения
 
 # URL для поиска новостей
 BASE_URL = 'https://news.google.com/'
