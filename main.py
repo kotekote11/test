@@ -1,81 +1,91 @@
-import requests
-from bs4 import BeautifulSoup
-import logging
+import asyncio
 import json
-import time
+import logging
 import os
+import random
+import time
+from bs4 import BeautifulSoup
+import requests
+from aiogram import Bot, Dispatcher, types
+from aiogram.utils import executor
 
-TELEGRAM_BOT_TOKEN = os.getenv("API_TOKEN")
+telegram_api_key = os.getenv("API_TOKEN")
 
-TELEGRAM_CHAT_ID = os.getenv("CHANNEL_ID")
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+#CHANNEL_ID = os.getenv("CHANNEL_ID")
+# Включить уровень логирования DEBUG
+logging.basicConfig(level=logging.DEBUG)
 
+# Создать бота
+with open('settings.json') as f:
+    settings = json.loads(f.read())
+bot = Bot(token=settings['telegram_api_key'])
+dp = Dispatcher(bot)
 
-# Keywords for filtering news
-keywords = "новости доллар"
+# Список отправленных новостей
+sent_news = []
 
-# Function to send a message via Telegram
-def send_telegram_message(message):
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {
-        'chat_id': TELEGRAM_CHAT_ID,
-        'text': message
-    }
-    response = requests.post(url, data=payload)
-    return response.json()
+# Обработчик команды /start
+@dp.message_handler(commands=['start'])
+async def cmd_start(message: types.Message):
+    await message.answer("Привет! Я буду присылать тебе новости по заданному запросу.")
+    await message.answer("Введи поисковый запрос:")
 
-# Function to fetch and parse news from DuckDuckGo
-def fetch_news():
-    url = "https://duckduckgo.com/"
-    response = requests.get(url)
-    soup = BeautifulSoup(response.content, 'html.parser')
-    
-    # Example parsing logic (this will vary depending on actual page structure)
-    news = []
-    for item in soup.find_all('div', class_='news-item'):
-        title = item.find('h2').text
-        link = item.find('a')['href']
-        news.append({'title': title, 'link': link})
-    
-    return news
+# Обработчик текстовых сообщений
+@dp.message_handler()
+async def text_message_handler(message: types.Message):
+    # Получить поисковый запрос
+    query = message.text
 
-# Function to load sent news from a JSON file
-def load_sent_news(file_path):
-    try:
-        with open(file_path, 'r') as file:
-            return json.load(file)
-    except FileNotFoundError:
-        return []
+    # Получить новости по запросу
+    news = get_news(query)
 
-# Function to save sent news to a JSON file
-def save_sent_news(file_path, sent_news):
-    with open(file_path, 'w') as file:
+    # Отфильтровать новые новости
+    new_news = [item for item in news if item['link'] not in sent_news]
+
+    # Отправить новые новости пользователю
+    for item in new_news:
+        await bot.send_message(message.chat.id, f"{item['title']}\n{item['link']}")
+
+    # Обновить список отправленных новостей
+    sent_news.extend([item['link'] for item in new_news])
+
+    # Сохранить список отправленных новостей в файл
+    with open('sent_news.json', 'w') as file:
         json.dump(sent_news, file)
 
-def main():
-    sent_news_file = 'sent_news.json'
-    sent_news = load_sent_news(sent_news_file)
+# Функция для получения новостей по запросу
+def get_news(query):
+    # Сформировать URL-адрес запроса
+    url = f"https://www.google.ru/search?q={query}"
 
-    while True:
-        logging.info("Fetching news...")
-        news = fetch_news()
+    # Отправить запрос и получить ответ
+    response = requests.get(url)
 
-        # Filter new news items
-        new_news = [item for item in news if item['link'] not in sent_news]
+    # Проверить код ответа
+    if response.status_code != 200:
+        raise Exception("Ошибка при получении новости")
 
-        for item in new_news:
-            if keywords in item['title']:
-                logging.info(f"Sending news: {item['title']}")
-                send_telegram_message(f"News: {item['title']}\nLink: {item['link']}")
-                sent_news.append(item['link'])
+    # Распарсить HTML-ответ
+    soup = BeautifulSoup(response.text, 'html.parser')
 
-        # Save the updated list of sent news
-        save_sent_news(sent_news_file, sent_news)
+    # Найти результаты поиска
+    results = soup.find_all('div', class_='g')
 
-        # Sleep for 200 seconds
-        logging.info("Sleeping for 200 seconds...")
-        time.sleep(200)
+    # Извлечь заголовки и ссылки на новости
+    news = []
+    for result in results:
+        title = result.find('h3').text
+        link = result.find('a')['href']
+        news.append({'title': title, 'link': link})
 
-if __name__ == "__main__":
-    main()
+    # Вернуть список новостей
+    return news
+
+# Загрузить список отправленных новостей из файла
+if os.path.isfile('sent_news.json'):
+    with open('sent_news.json') as file:
+        sent_news = json.load(file)
+
+# Запустить цикл обработки сообщений
+if __name__ == '__main__':
+    executor.start_polling(dp, skip_updates=True)
