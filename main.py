@@ -44,7 +44,7 @@ def search_news():
     soup = BeautifulSoup(response.text, 'html.parser')
 
     news_items = []
-    for item in soup.find_all('div', class_='BVG0Nb'):
+    for item in soup.find_all('h3'):
         link = item.find('a')
         if link and link.get('href'):
             news_items.append({'title': item.get_text(strip=True), 'link': link.get('href')})
