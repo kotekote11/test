@@ -1,50 +1,103 @@
-from telegram import Update
-from telegram.ext import CommandHandler, MessageHandler, ContextTypes, Application, filters
-import random
+import requests
+from bs4 import BeautifulSoup
+import logging
+import json
+import time
+import os
+TELEGRAM_BOT_TOKEN = os.getenv("API_TOKEN")
+CHAT_ID = os.getenv("CHANNEL_ID")
+# Настройка логгирования
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
+# Ваши данные для работы с Telegram Bot API
+#TELEGRAM_BOT_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'
+#CHAT_ID = 'YOUR_CHAT_ID'  # ID чата, куда будут отправляться сообщения
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик команды /start."""
-    await update.message.reply_text('Привет! Я бот для раздачи бонусов.')
+# URL для поиска новостей
+BASE_URL = 'https://news.google.com/'
+SEARCH_URL = BASE_URL + '?q={}&hl=ru&gl=RU&ceid=RU%3Aru'
 
+# Ключевое слово для поиска
+KEYWORD = 'новости доллар'
 
-async def bonus(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик команды /bonus."""
-    bonus_amount = random.randint(1, 100)  # Генерация случайного бонуса
-    await update.message.reply_text(f'Ваш бонус: {bonus_amount}')
+# Файл для хранения уже отправленных новостей
+SENT_NEWS_FILE = 'sent_news.json'
 
-bonus
-async def statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик команды /statistics."""
-    await update.message.reply_text('Здесь будет статистика.')
+def get_latest_news(keyword):
+    """Получает последние новости по ключевому слову."""
+    url = SEARCH_URL.format(keyword)
+    response = requests.get(url)
+    
+    if response.status_code == 200:
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        news_list = []
+        for article in soup.find_all('article'):
+            title_tag = article.find('h3', class_='ipQwMb ekueJc gEAtD c0vUI')
+            link_tag = article.find('a', class_='VDXfz')
+            
+            if title_tag and link_tag:
+                title = title_tag.text.strip()
+                link = BASE_URL[:-1] + link_tag['href']
+                
+                news_item = {
+                    'title': title,
+                    'link': link
+                }
+                news_list.append(news_item)
+        
+        return news_list[:1]
+    else:
+        logger.error(f'Ошибка при получении страницы: {response.status_code}')
+        return None
 
+def load_sent_news():
+    """Загружает список уже отправленных новостей из файла."""
+    try:
+        with open(SENT_NEWS_FILE, 'r') as f:
+            sent_news = json.load(f)
+    except FileNotFoundError:
+        sent_news = {}
+    return sent_news
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик сообщений."""
-    text = update.message.text.lower()
-    if text == 'бонус':
-        await bonus(update, context)
-    elif text == 'статистика':
-        await statistics(update, context)
+def save_sent_news(sent_news):
+    """Сохраняет список уже отправленных новостей в файл."""
+    with open(SENT_NEWS_FILE, 'w') as f:
+        json.dump(sent_news, f)
 
+def send_message(text):
+    """Отправляет сообщение в Telegram чат."""
+    url = f'https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage'
+    data = {'chat_id': CHAT_ID, 'text': text}
+    response = requests.post(url, data=data)
+    if response.status_code != 200:
+        logger.error(f'Ошибка при отправке сообщения: {response.status_code}')
 
 def main():
-    # Инициализация бота
-    application = Application.builder().token("581877889:").build()
-
-    # Обработчики команд
-    application.add_handlers([
-        CommandHandler("start", start),
-        CommandHandler("bonus", bonus),
-        CommandHandler("statistics", statistics)
-    ])
-
-    # Обработчик сообщений
-    application.add_handler(MessageHandler(filters.TEXT, handle_message))
-
-    # Запуск бота
-    application.run_polling()
-
+    # Загрузка списка уже отправленных новостей
+    sent_news = load_sent_news()
+    
+    # Получение последних новостей
+    latest_news = get_latest_news(KEYWORD)
+    
+    if latest_news is not None:
+        for news in latest_news:
+            news_title = news['title']
+            news_link = news['link']
+            news_hash = hash((news_title, news_link))
+            
+            if str(news_hash) not in sent_news:
+                message_text = f'{news_title}\n{news_link}'
+                send_message(message_text)
+                sent_news[str(news_hash)] = True
+                logger.info(f'Новость "{news_title}" успешно отправлена.')
+    
+    # Сохраняем обновленный список отправленных новостей
+    save_sent_news(sent_news)
 
 if __name__ == '__main__':
-    main()
+    while True:
+        main()
+        time.sleep(200)  # Пауза между проверками (примерно каждые 3 минуты)
