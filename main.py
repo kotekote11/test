@@ -9,10 +9,6 @@ CHAT_ID = os.getenv("CHANNEL_ID")
 # Настроим логирование
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Конфигурация Telegram
-TELEGRAM_TOKEN = 'YOUR_TELEGRAM_TOKEN'  # Укажите ваш токен Telegram
-CHAT_ID = 'YOUR_CHAT_ID'  # Ваш chat ID
-
 # Файл для хранения отправленных новостей
 SENT_NEWS_FILE = 'sent_news.json'
 
