@@ -5,9 +5,7 @@ import logging
 import time
 import os
 
-telegram_token = os.getenv("API_TOKEN")
 
-telegram_chat_id = os.getenv("CHANNEL_ID")
 # Настройка логгирования
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -69,7 +67,8 @@ def send_to_telegram_bot(token, chat_id, message):
         logger.error(f"Произошла ошибка при отправке сообщения: {response.text}")
 
 if __name__ == "__main__":
-
+    telegram_token = os.getenv("API_TOKEN")
+    telegram_chat_id = os.getenv("CHANNEL_ID")
     keywords = "новости рубля"
     
     # Получаем список ссылок с канала
