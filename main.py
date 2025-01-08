@@ -79,7 +79,8 @@ def send_random_news():
         link = random_news['link']
 
         # Формируем текст сообщения
-        message_text = f"<b>{title}</b>\n{link}"  # Ссылка без HTML-тега
+        #message_text = f"<b>{title}</b>\n{link}"  # Ссылка без HTML-тега
+        message_text = f"<b>{title}</b>\n<a href='{link}'>{link}</a>"
 
         # Отправка сообщения
         send_message(message_text)
