@@ -32,13 +32,16 @@ def save_sent_news(sent_news):
         logging.info("Сохранены отправленные новости в файл.")
 
 def clean_url(url):
-    """Очищает URL от лишних параметров после '&sa=U&ved'."""
+    """Очищает URL от '/url?q=' и лишних параметров после '&sa=U&ved'."""
+    # Удаляем '/url?q='
+    if url.startswith('/url?q='):
+        url = url[len('/url?q='):]
+    
     # Удаляем все, что идет после и включая '&sa=U&ved'
     if '&sa=U&ved' in url:
-        cleaned_url = url.split('&sa=U&ved')[0]
-    else:
-        cleaned_url = url
-    return cleaned_url
+        url = url.split('&sa=U&ved')[0]
+
+    return url
 
 def search_news(query):
     """Поиск новостей на Google по заданному запросу."""
