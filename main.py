@@ -1,6 +1,7 @@
 import logging
 import random
 import requests
+import re
 from bs4 import BeautifulSoup
 import json
 import time
@@ -30,6 +31,12 @@ def save_sent_news(sent_news):
         json.dump(sent_news, file)
         logging.info("Сохранены отправленные новости в файл.")
 
+def clean_url(url):
+    """Очищает URL от лишних параметров."""
+    clean_url_pattern = r'^(https?://[^?]+)(' + r'(\?[^#]*)?(#.*)?' + r')?$'
+    match = re.match(clean_url_pattern, url)
+    return match.group(1) if match else url  # Возврат очищенного URL
+
 def search_news(query):
     """Поиск новостей на Google по заданному запросу."""
     response = requests.get(GOOGLE_SEARCH_URL.format(query))
@@ -39,10 +46,11 @@ def search_news(query):
     news = []
 
     # Измените селекторы, если структура Google изменится
-    for item in soup.find_all('h3'):  # Получить заголовки новостей
+    for item in soup.find_all('h3'):
         title = item.get_text()
         link = item.find_parent('a')['href']  # Получаем ссылку на новость
-        news.append({'title': title, 'link': link})
+        cleaned_link = clean_url(link)  # Очищаем ссылку
+        news.append({'title': title, 'link': cleaned_link})
 
     logging.debug(f"Найдено новостей: {len(news)}")
     return news
@@ -79,7 +87,7 @@ def send_random_news():
         link = random_news['link']
 
         # Формируем текст сообщения
-        message_text = f"{title}\n{link}"  # Заголовок и ссылка без лишнего добавления
+        message_text = f"{title}\n{link}"
 
         # Отправка сообщения
         send_message(message_text)
@@ -87,6 +95,7 @@ def send_random_news():
         # Добавление в список отправленных новостей
         sent_news.append(link)
         save_sent_news(sent_news)
+        
         logging.info(f"Отправлена новость: {title}")
     else:
         logging.info("Нет новых новостей для отправки.")
