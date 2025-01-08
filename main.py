@@ -10,10 +10,11 @@ CHAT_ID = os.getenv("CHANNEL_ID")
 # Настройка логирования
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
+
 # URL для проверки новостей в Telegram
 TELEGRAM_CHANNEL_URL = 'https://t.me/s/fgtestfg'
 # Ключевые слова для поиска
-KEYWORDS = "фонтан открытие"
+KEYWORDS = "новости рубля"
 
 def clean_url(url):
     """Очищает URL, оставляя только нужный адрес."""
@@ -31,6 +32,15 @@ def fetch_telegram_links():
         links.add(href)
     
     return links  # Возвращаем уникальные ссылки
+
+def is_link_working(link):
+    """Проверяет доступность ссылки."""
+    try:
+        response = requests.get(link, timeout=5)
+        return response.status_code == 200
+    except requests.RequestException as e:
+        logging.warning(f'Проблема с доступом к ссылке: {link} - {e}')
+        return False
 
 def send_telegram_message(message):
     """Отправляет сообщение в Telegram."""
@@ -67,15 +77,17 @@ def main():
     logging.info(f'Найдено {len(news_items)} новостей.')
 
     for news in news_items:
-        if news['link'] not in known_links:  # Если ссылки нет в известных
+        if news['link'] not in known_links and is_link_working(news['link']):  # Если ссылка новая и рабочая
             message = f'<b>{news["title"]}</b>\n{news["link"]}'
             response = send_telegram_message(message)
             if response.get('ok'):
                 logging.info(f'Отправлено: {news["title"]}')
             else:
                 logging.error(f'Ошибка отправки: {response}')
-        else:
+        elif news['link'] in known_links:
             logging.info(f'Новость уже существует в Telegram: {news["title"]}')
+        else:
+            logging.info(f'Ссылка не рабочая: {news["link"]}')
 
 if __name__ == "__main__":
     while True:
