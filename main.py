@@ -32,10 +32,13 @@ def save_sent_news(sent_news):
         logging.info("Сохранены отправленные новости в файл.")
 
 def clean_url(url):
-    """Очищает URL от лишних параметров."""
-    clean_url_pattern = r'^(https?://[^?]+)(' + r'(\?[^#]*)?(#.*)?' + r')?$'
-    match = re.match(clean_url_pattern, url)
-    return match.group(1) if match else url  # Возврат очищенного URL
+    """Очищает URL от лишних параметров после '&sa=U&ved'."""
+    # Удаляем все, что идет после и включая '&sa=U&ved'
+    if '&sa=U&ved' in url:
+        cleaned_url = url.split('&sa=U&ved')[0]
+    else:
+        cleaned_url = url
+    return cleaned_url
 
 def search_news(query):
     """Поиск новостей на Google по заданному запросу."""
@@ -95,7 +98,6 @@ def send_random_news():
         # Добавление в список отправленных новостей
         sent_news.append(link)
         save_sent_news(sent_news)
-        
         logging.info(f"Отправлена новость: {title}")
     else:
         logging.info("Нет новых новостей для отправки.")
@@ -103,4 +105,5 @@ def send_random_news():
 if __name__ == '__main__':
     while True:
         send_random_news()
+        
         time.sleep(200)  # Пауза перед следующим запросом
