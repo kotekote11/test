@@ -38,8 +38,8 @@ def search_news(query):
     soup = BeautifulSoup(response.text, 'html.parser')
     news = []
 
-    # Измените селектор, если структура Google изменится
-    for item in soup.find_all('h3'):
+    # Измените селекторы, если структура Google изменится
+    for item in soup.find_all('h3'):  # Получить заголовки новостей
         title = item.get_text()
         link = item.find_parent('a')['href']  # Получаем ссылку на новость
         news.append({'title': title, 'link': link})
@@ -79,8 +79,7 @@ def send_random_news():
         link = random_news['link']
 
         # Формируем текст сообщения
-        #message_text = f"<b>{title}</b>\n{link}"  # Ссылка без HTML-тега
-        message_text = f"<b>{title}</b>\n<a href='{link}'>{link}</a>"
+        message_text = f"{title}\n{link}"  # Заголовок и ссылка без лишнего добавления
 
         # Отправка сообщения
         send_message(message_text)
