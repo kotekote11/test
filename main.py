@@ -10,7 +10,6 @@ CHAT_ID = os.getenv("CHANNEL_ID")
 # Настройка логирования
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
-
 # URL для проверки новостей в Telegram
 TELEGRAM_CHANNEL_URL = 'https://t.me/s/fgtestfg'
 # Ключевые слова для поиска
@@ -46,7 +45,7 @@ def search_news():
     soup = BeautifulSoup(response.text, 'html.parser')
 
     news_items = []
-    for item in soup.find_all('h3'):
+    for item in soup.find_all('div', class_='BVG0Nb'):
         link = item.find('a')
         if link:
             clean_link = clean_url(link['href'])
