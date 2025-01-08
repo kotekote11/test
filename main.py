@@ -1,85 +1,70 @@
 import requests
 from bs4 import BeautifulSoup
 import logging
-import telegram
-from telegram.ext import Updater, CommandHandler
 import time
 import os
 
-token = os.getenv("API_TOKEN")
+bot_token = os.getenv("API_TOKEN")
 
 chat_id = os.getenv("CHANNEL_ID")
 # Настройка логирования
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)
 
-# Функция для очистки URL от лишних параметров
+# Функция для очистки URL
 def clean_url(url):
     url = url[len('/url?q='):]
     url = url.split('&sa=U&ved')[0]
     return url
 
-# Парсер Google News
-def parse_google_news(keywords):
-    url = f'https://news.google.com/search?q={keywords}&hl=ru&gl=RU&ceid=RU%3Aru'
-    response = requests.get(url)
+# Функция для получения новостей из Google
+def get_news(keywords):
+    search_url = f"https://www.google.ru/search?q={keywords}&num=10"
+    response = requests.get(search_url)
     soup = BeautifulSoup(response.text, 'html.parser')
     
-    news_list = []
-    for item in soup.find_all('article'):
-        try:
-            title = item.find('h3').get_text()
-            link = item.find('a', href=True)['href']
-            cleaned_link = clean_url(link)
-            news_list.append((title, cleaned_link))
-        except AttributeError:
-            continue
-        
-    return news_list
-
-# Проверка наличия новости на канале Telegram
-def check_if_exists(title, bot, chat_id):
-    offset = 0
-    limit = 100
-    while True:
-        updates = bot.get_updates(offset=offset, timeout=10, allowed_updates=['channel_post'])
-        for update in updates:
-            if update.channel_post.text == title:
-                logger.info(f"Новость '{title}' уже существует.")
-                return True
-            
-        # Если достигли лимита сообщений, то прерываемся
-        if len(updates) < limit:
-            break
-        
-        offset += limit
+    news_items = []
+    for item in soup.find_all('h3'):
+        title = item.get_text()
+        link = item.find_parent('a')['href']
+        clean_link = clean_url(link)
+        news_items.append((title, clean_link))
     
-    return False
+    return news_items
 
-# Отправка новой уникальной новости в канал Telegram
-def send_new_news(news_list, bot, chat_id):
-    for title, link in news_list:
-        if not check_if_exists(title, bot, chat_id):
-            message = f"{title}\n{link}"
-            bot.send_message(chat_id=chat_id, text=message)
-            logger.info(f"Отправлена новая новость: {title}")
+# Функция для проверки на дублирование
+def check_duplicates(news_items, existing_titles):
+    new_news = []
+    for title, link in news_items:
+        if title not in existing_titles:
+            new_news.append((title, link))
+    return new_news
 
-# Основная функция программы
+# Функция для отправки новостей в Telegram
+def send_to_telegram(news_items, bot_token, chat_id):
+    for title, link in news_items:
+        message = f"{title}\n{link}"
+        response = requests.post(f"https://api.telegram.org/bot{bot_token}/sendMessage", 
+                                 data={'chat_id': chat_id, 'text': message})
+        if response.status_code == 200:
+            logging.debug(f"Sent: {message}")
+        else:
+            logging.error(f"Failed to send message: {response.text}")
+
+# Основной процесс
 def main():
-
-    bot = telegram.Bot(token=token)
-    
-    # ID канала Telegram, куда будут отправляться новости
-
-    
-    # Ключевое слово для поиска новостей
     keywords = "новости евро"
     
-    while True:
-        news_list = parse_google_news(keywords)
-        send_new_news(news_list, bot, chat_id)
-        time.sleep(600)  # Пауза между проверками (10 минут)
+    # Получаем существующие новости из Telegram канала
+    existing_titles = set()  # Здесь должен быть код для получения заголовков из канала
 
-if __name__ == '__main__':
+    while True:
+        news_items = get_news(keywords)
+        new_news = check_duplicates(news_items, existing_titles)
+        
+        if new_news:
+            send_to_telegram(new_news, bot_token, chat_id)
+        
+        time.sleep(200)  # Пауза перед следующим запросом
+
+if __name__ == "__main__":
     main()
