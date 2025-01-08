@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %
 
 # Google Search URL
 GOOGLE_SEARCH_URL = "https://www.google.ru/search?q={}&tbm=nws"
-KEYWORDS = "новости евро"
+KEYWORDS = "новости рубля"
 
 # Telegram Channel URL to check for existing news
 TELEGRAM_CHANNEL_URL = "https://t.me/s/fgtestfg"
