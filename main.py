@@ -1,78 +1,85 @@
 import requests
 from bs4 import BeautifulSoup
 import logging
+import telegram
+from telegram.ext import Updater, CommandHandler
 import time
 import os
 
-TELEGRAM_TOKEN = os.getenv("API_TOKEN")
+token = os.getenv("API_TOKEN")
 
-CHAT_ID = os.getenv("CHANNEL_ID")
+chat_id = os.getenv("CHANNEL_ID")
 # Настройка логирования
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-# URL для проверки новостей в Telegram
-TELEGRAM_CHANNEL_URL = 'https://t.me/s/fgtestfg'
-# Ключевые слова для поиска
-KEYWORDS = "новости евро"
-
+# Функция для очистки URL от лишних параметров
 def clean_url(url):
-    """Очищает URL, оставляя только нужный адрес."""
-    url = url[len('/url?q='):]  # Убираем префикс
-    return url.split('&sa=U&ved')[0]  # Убираем лишние параметры
+    url = url[len('/url?q='):]
+    url = url.split('&sa=U&ved')[0]
+    return url
 
-def fetch_telegram_titles():
-    """Получает заголовки новостей из Telegram-канала."""
-    response = requests.get(TELEGRAM_CHANNEL_URL)
+# Парсер Google News
+def parse_google_news(keywords):
+    url = f'https://news.google.com/search?q={keywords}&hl=ru&gl=RU&ceid=RU%3Aru'
+    response = requests.get(url)
     soup = BeautifulSoup(response.text, 'html.parser')
-
-    titles = set()
-    for item in soup.find_all('div', class_='tgme_widget_message_text'):
-        titles.add(item.get_text(strip=True))
-
-    return titles  # Возвращаем уникальные заголовки
-
-def send_telegram_message(message):
-    """Отправляет сообщение в Telegram."""
-    url = f'https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage'
-    data = {'chat_id': CHAT_ID, 'text': message, 'parse_mode': 'HTML'}
-    response = requests.post(url, data=data)
-    return response.json()
-
-def search_news():
-    """Ищет новости по ключевым словам на Google."""
-    query = f'https://www.google.ru/search?q={KEYWORDS}&hl=ru'
-    response = requests.get(query)
-    soup = BeautifulSoup(response.text, 'html.parser')
-
-    news_items = []
-    for item in soup.find_all('h3'):
-        link = item.find('a')
-        if link:
-            clean_link = clean_url(link['href'])
-            title = item.get_text(strip=True)
-            news_items.append({'title': title, 'link': clean_link})
-
-    return news_items
-
-def main():
-    """Основная логика."""
-    known_titles = fetch_telegram_titles()  # Получаем известные заголовки из Telegram
     
-    news_items = search_news()
-    logging.info(f'Найдено {len(news_items)} новостей.')
+    news_list = []
+    for item in soup.find_all('article'):
+        try:
+            title = item.find('h3').get_text()
+            link = item.find('a', href=True)['href']
+            cleaned_link = clean_url(link)
+            news_list.append((title, cleaned_link))
+        except AttributeError:
+            continue
+        
+    return news_list
 
-    for news in news_items:
-        if news['title'] not in known_titles:  # Если заголовка нет в известных
-            message = f'<b>{news["title"]}</b>\n{news["link"]}'
-            response = send_telegram_message(message)
-            if response.get('ok'):
-                logging.info(f'Отправлено: {news["title"]}')
-            else:
-                logging.error(f'Ошибка отправки: {response}')
-        else:
-            logging.info(f'Новость уже существует в Telegram: {news["title"]}')
-
-if __name__ == "__main__":
+# Проверка наличия новости на канале Telegram
+def check_if_exists(title, bot, chat_id):
+    offset = 0
+    limit = 100
     while True:
-        main()
-        time.sleep(200)  # Подождите 200 секунд перед следующим запросом
+        updates = bot.get_updates(offset=offset, timeout=10, allowed_updates=['channel_post'])
+        for update in updates:
+            if update.channel_post.text == title:
+                logger.info(f"Новость '{title}' уже существует.")
+                return True
+            
+        # Если достигли лимита сообщений, то прерываемся
+        if len(updates) < limit:
+            break
+        
+        offset += limit
+    
+    return False
+
+# Отправка новой уникальной новости в канал Telegram
+def send_new_news(news_list, bot, chat_id):
+    for title, link in news_list:
+        if not check_if_exists(title, bot, chat_id):
+            message = f"{title}\n{link}"
+            bot.send_message(chat_id=chat_id, text=message)
+            logger.info(f"Отправлена новая новость: {title}")
+
+# Основная функция программы
+def main():
+
+    bot = telegram.Bot(token=token)
+    
+    # ID канала Telegram, куда будут отправляться новости
+
+    
+    # Ключевое слово для поиска новостей
+    keywords = "новости евро"
+    
+    while True:
+        news_list = parse_google_news(keywords)
+        send_new_news(news_list, bot, chat_id)
+        time.sleep(600)  # Пауза между проверками (10 минут)
+
+if __name__ == '__main__':
+    main()
