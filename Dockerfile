@@ -4,4 +4,5 @@ COPY . /app
 RUN pip install requests
 RUN pip install beautifulsoup4
 RUN pip install telegram
+RUN pip install python-telegram-bot
 CMD ["python", "main.py"]
