@@ -13,7 +13,7 @@ LOG_FILE = 'sent_news.json'  # Файл для сохранения отправ
 GOOGLE_SEARCH_URL = 'https://www.google.ru/search?q={}'
 
 # Настройка логирования
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def load_sent_news():
     """Загружает отправленные новости из файла JSON."""
@@ -21,27 +21,30 @@ def load_sent_news():
         with open(LOG_FILE, 'r') as file:
             return json.load(file)
     except FileNotFoundError:
+        logging.info("Файл с отправленными новостями не найден. Создание нового файла.")
         return []
 
 def save_sent_news(sent_news):
     """Сохраняет список отправленных новостей в файл JSON."""
     with open(LOG_FILE, 'w') as file:
         json.dump(sent_news, file)
+        logging.info("Сохранены отправленные новости в файл.")
 
 def search_news(query):
     """Поиск новостей на Google по заданному запросу."""
     response = requests.get(GOOGLE_SEARCH_URL.format(query))
     response.raise_for_status()
-
+    
     soup = BeautifulSoup(response.text, 'html.parser')
     news = []
-    
+
     # Измените селектор, если структура Google изменится
     for item in soup.find_all('h3'):
         title = item.get_text()
         link = item.find_parent('a')['href']  # Получаем ссылку на новость
         news.append({'title': title, 'link': link})
 
+    logging.debug(f"Найдено новостей: {len(news)}")
     return news
 
 def send_message(text):
@@ -55,6 +58,7 @@ def send_message(text):
     try:
         response = requests.post(url, json=payload)
         response.raise_for_status()
+        logging.info("Сообщение успешно отправлено.")
     except requests.exceptions.RequestException as e:
         logging.error(f"Ошибка отправки сообщения: {e}")
 
@@ -75,7 +79,7 @@ def send_random_news():
         link = random_news['link']
 
         # Формируем текст сообщения
-        message_text = f"<b>{title}</b>\n{link}"
+        message_text = f"<b>{title}</b>\n<a href='{link}'>Ссылка на новость</a>"
 
         # Отправка сообщения
         send_message(message_text)
