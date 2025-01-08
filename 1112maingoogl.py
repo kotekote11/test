@@ -2,18 +2,19 @@ import requests
 from bs4 import BeautifulSoup
 import logging
 import time
+import os
 
+TELEGRAM_TOKEN = os.getenv("API_TOKEN")
+
+CHAT_ID = os.getenv("CHANNEL_ID")
 # Настройка логирования
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Конфигурация Telegram
-TELEGRAM_TOKEN = 'YOUR_TELEGRAM_TOKEN'  # Укажите ваш токен Telegram
-CHAT_ID = 'YOUR_CHAT_ID'  # Укажите ваш chat ID
 
 # URL для проверки новостей в Telegram
 TELEGRAM_CHANNEL_URL = 'https://t.me/s/fgtestfg'
 # Ключевые слова для поиска
-KEYWORDS = ["фонтан открытие", "фонтан музыкальный открытие"]
+KEYWORDS = "фонтан музыкальный открытие"
 
 def clean_url(url):
     """Очищает URL, оставляя только нужный адрес."""
@@ -54,18 +55,17 @@ def send_telegram_message(message):
 
 def search_news():
     """Ищет новости по ключевым словам на Google."""
-    news_items = []
-    for keyword in KEYWORDS:
-        query = f'https://www.google.ru/search?q={keyword}&hl=ru'
-        response = requests.get(query)
-        soup = BeautifulSoup(response.text, 'html.parser')
+    query = f'https://www.google.ru/search?q={KEYWORDS}&hl=ru'
+    response = requests.get(query)
+    soup = BeautifulSoup(response.text, 'html.parser')
 
-        for item in soup.find_all('h3'):
-            link = item.find_parent('a')  # Получаем родительский элемент <a>
-            if link:
-                clean_link = clean_url(link['href'])
-                title = item.get_text(strip=True)
-                news_items.append({'title': title, 'link': clean_link})
+    news_items = []
+    for item in soup.find_all('h3'):
+        link = item.find_parent('a')  # Получаем родительский элемент <a>
+        if link:
+            clean_link = clean_url(link['href'])
+            title = item.get_text(strip=True)
+            news_items.append({'title': title, 'link': clean_link})
 
     return news_items
 
@@ -77,7 +77,7 @@ def main():
     logging.info(f'Найдено {len(news_items)} новостей.')
 
     for news in news_items:
-        if news['link'] not in known_links and is_link_working(news['link']):  # Проверяем, чтобы ссылка была новой и рабочей
+        if news['link'] not in known_links and is_link_working(news['link']):  # Если ссылка новая и рабочая
             message = f'<b>{news["title"]}</b>\n{news["link"]}'
             response = send_telegram_message(message)
             if response.get('ok'):
@@ -92,3 +92,4 @@ def main():
 if __name__ == "__main__":
     while True:
         main()
+        time.sleep(200)  # Подождите 200 секунд перед следующим запросом
