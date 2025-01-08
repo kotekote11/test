@@ -26,7 +26,7 @@ def fetch_telegram_titles():
     soup = BeautifulSoup(response.text, 'html.parser')
 
     titles = set()
-    for item in soup.find_all('a', class_='tgme_widget_message_text'):
+    for item in soup.find_all('div', class_='tgme_widget_message_text'):
         titles.add(item.get_text(strip=True))
 
     return titles  # Возвращаем уникальные заголовки
@@ -45,7 +45,7 @@ def search_news():
     soup = BeautifulSoup(response.text, 'html.parser')
 
     news_items = []
-    for item in soup.find_all('div', class_='BVG0Nb'):
+    for item in soup.find_all('h3'):
         link = item.find('a')
         if link:
             clean_link = clean_url(link['href'])
