@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %
 # URL для проверки новостей в Telegram
 TELEGRAM_CHANNEL_URL = 'https://t.me/s/fgtestfg'
 # Ключевые слова для поиска
-KEYWORDS = "фонтан открытие"
+KEYWORDS = "фонтан музыкальный открытие"
 
 def clean_url(url):
     """Очищает URL, оставляя только нужный адрес."""
