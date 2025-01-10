@@ -32,6 +32,7 @@ def is_link_working(link):
    except requests.RequestException as e:
        logging.warning(f'Проблема с доступом к ссылке: {link} - {e}')
        return False
+      
 def send_telegram_message(message):
    """Отправляет сообщение в Telegram."""
    url = f'https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage'
@@ -45,7 +46,7 @@ def send_telegram_message(message):
 
 def search_news():
    """Ищет новости по ключевым словам на Google."""
-   query = f'https://www.google.ru/search?q={KEYWORDS}&tbs=qdr:d&hl=ru'
+   query = f'https://www.google.ru/search?q={KEYWORDS}&hl=ru&tbs=qdr:d'
    response = requests.get(query)
    soup = BeautifulSoup(response.text, 'html.parser')
    news_items = []
