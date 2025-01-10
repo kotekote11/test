@@ -24,7 +24,7 @@ TELEGRAM_CHANNEL_URL = 'https://t.me/s/fgtestfg'
 
 # Ключевые слова для поиска
 
-KEYWORDS = "фонтан музыкальный открытие"
+KEYWORDS = "открытие музыкальных фонтанов"
 
 def clean_url(url):
 
@@ -94,7 +94,7 @@ def search_news():
 
    """Ищет новости по ключевым словам на Google."""
 
-   query = f'https://www.google.ru/search?q={KEYWORDS}&hl=ru'
+   query = f'https://www.google.ru/search?q={KEYWORDS}&tbs=qdr:d&hl=ru'
 
    response = requests.get(query)
 
