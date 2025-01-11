@@ -10,7 +10,13 @@ from bs4 import BeautifulSoup
 API_TOKEN = os.getenv("API_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 SENT_LIST_FILE = 'google.json'  # Файл для хранения отправленных новостей
-KEYWORDS = "открытие фонтанов"  # Ваши ключевые слова
+
+# Ключевые слова
+KEYWORDS = [
+    "открытие фонтанов",
+    "открытие фонтанов 2025",
+    "открытие музыкального фонтана"
+]
 
 # Списки игнорирования
 IGNORE_WORDS = {"нефть", "недр", "месторождение"}  # Запрещенные слова
@@ -28,12 +34,15 @@ def clean_url(url):
     return url
 
 def load_sent_news():
-    """Загружает уже отправленные новости из файла."""
-    try:
-        with open(SENT_LIST_FILE, 'r') as file:
-            return json.load(file)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return []  # Если файл не существует или пуст, возвращаем пустой список
+    """Загружает уже отправленные новости из файла или создает файл, если его нет."""
+    if os.path.exists(SENT_LIST_FILE):
+        try:
+            with open(SENT_LIST_FILE, 'r') as file:
+                return json.load(file)
+        except (FileNotFoundError, json.JSONDecodeError):
+            logging.warning("Ошибка при загрузке отправленных новостей, создается новый список.")
+            return []  # Если файл не существует или пуст, возвращаем пустой список
+    return []  # Если файл не существует, возвращаем пустой список
 
 def save_sent_news(sent_news):
     """Сохраняет уже отправленные новости в файл."""
@@ -41,26 +50,27 @@ def save_sent_news(sent_news):
         json.dump(sent_news, file)
 
 def search_news():
-    """Поиск новостей на Google по заданному запросу."""
-    query = f'https://www.google.ru/search?q={KEYWORDS}&hl=ru&tbs=qdr:d'  # Поиск за последний день
-    response = requests.get(query)
-    response.raise_for_status()
-    
-    soup = BeautifulSoup(response.text, 'html.parser')
+    """Поиск новостей на Google по заданным запросам."""
     news = []
-
-    # Найдем заголовки новостей и ссылки
-    for item in soup.find_all('h3'):
-        title = item.get_text()
-        link = item.find_parent('a')['href']
-        cleaned_link = clean_url(link)
+    for keyword in KEYWORDS:
+        query = f'https://www.google.ru/search?q={keyword}&hl=ru&tbs=qdr:d'  # Поиск за последний день
+        response = requests.get(query)
+        response.raise_for_status()
         
-        # Проверяем, что ссылка рабочая
-        try:
-            if requests.head(cleaned_link).status_code == 200:
-                news.append({'title': title, 'link': cleaned_link})
-        except requests.exceptions.RequestException:
-            logging.warning(f"Некорректная ссылка: {cleaned_link}")
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        # Найдем заголовки новостей и ссылки
+        for item in soup.find_all('h3'):
+            title = item.get_text()
+            link = item.find_parent('a')['href']
+            cleaned_link = clean_url(link)
+            
+            # Проверяем, что ссылка рабочая
+            try:
+                if requests.head(cleaned_link).status_code == 200:
+                    news.append({'title': title, 'link': cleaned_link})
+            except requests.exceptions.RequestException:
+                logging.warning(f"Некорректная ссылка: {cleaned_link}")
 
     logging.debug(f"Найдено новостей: {len(news)}")
     return news
@@ -80,6 +90,7 @@ def send_message(text):
         return True
     except requests.exceptions.RequestException as e:
         logging.error(f"Ошибка отправки сообщения: {e}")
+
         return False
 
 def send_random_news():
@@ -98,7 +109,6 @@ def send_random_news():
         site = link.split('/')[2]  # Извлекаем домен из ссылки
 
         # Проверяем на наличие запрещенных слов и сайтов
-
         if title not in sent_titles and not any(word in title.lower() for word in IGNORE_WORDS) and not any(site in link for site in IGNORE_SITES):
             filtered_news.append(item)
 
