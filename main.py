@@ -13,7 +13,7 @@ KEYWORDS = "фонтан открытие"  # Ваши ключевые слов
 SENT_LIST_FILE = 'google.json'  # Файл для хранения отправленных новостей
 
 # Список запрещенных слов
-DISALLOWED_WORDS = {"нефть", "недр", "месторождени"}
+DISALLOWED_WORDS = {"нефть", "недр", "месторождени", "ФОНТАНКА.ру"}
 
 # Настройка логирования
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
