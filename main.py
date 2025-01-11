@@ -1,8 +1,11 @@
+
 import logging
-from bs4 import BeautifulSoup
 import os
 import json
 import requests
+import time
+
+from bs4 import BeautifulSoup
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -86,5 +89,8 @@ def main():
             sent_list = sent_list[-9:]
             save_sent_list(sent_list)
 
+    time.sleep(300)  # Sleep for 5 minutes
+
 if __name__ == '__main__':
-    main()
+    while True:
+        main()
