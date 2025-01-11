@@ -12,6 +12,9 @@ CHANNEL_ID = os.getenv("CHANNEL_ID")
 KEYWORDS = "фонтан открытие"  # Ваши ключевые слова
 SENT_LIST_FILE = 'google.json'  # Файл для хранения отправленных новостей
 
+# Список запрещенных слов
+DISALLOWED_WORDS = {"нефть", "недр", "месторождени"}
+
 # Настройка логирования
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -86,23 +89,23 @@ def send_random_news():
     sent_news = load_sent_news()
     sent_titles = [item['title'] for item in sent_news]
 
-    # Фильтруем новости по заголовкам
+    # Фильтруем новости по заголовкам и запрещенным словам
     new_news = [item for item in news if item['title'] not in sent_titles]
+    filtered_news = [item for item in new_news if not any(word in item['title'].lower() for word in DISALLOWED_WORDS)]
 
-    if new_news:
-        random_news = random.choice(new_news)
+    if filtered_news:
+
+        random_news = random.choice(filtered_news)
         title = random_news['title']
         link = random_news['link']
         
         # Формируем текст сообщения с хештегами
-
         message_text = f"{title}\n{link}\n⛲@MonitoringFontan📰#MonitoringFontan"
 
         # Отправка сообщения
         if send_message(message_text):
             # Сохраняем отправленную новость
             sent_news.append({'title': title, 'link': link})
-
             save_sent_news(sent_news)
             logging.info(f"Отправлена новость: {title}")
     else:
