@@ -5,18 +5,12 @@ import logging
 import json
 import time
 
-# Настройка логирования
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
-
-# Загружаем переменные окружения
 API_TOKEN = os.getenv("API_TOKEN")  # Токен Telegram
 CHANNEL_ID = os.getenv("CHANNEL_ID")  # Идентификатор канала
 SENT_LIST_FILE = 'google.json'  # Файл для хранения отправленных новостей
-
-# Ключевые слова для поиска
-KEYWORDS = "фонтан открытие"
-#IGNORE_SITES = ["instagram", "livejournal", "fontanka"]  # Сайты, которые игнорируются
-IGNORE_SITES = ["vk", "vk", "vk"]  # Сайты, которые игнорируются
+KEYWORDS = ["открытие фонтанов", "открытие фонтанов 2025", "открытие музыкального фонтана "]
+IGNORE_SITES = ["instagram", "livejournal", "fontanka"]  # Сайты, которые игнорируются
 IGNORE_WORDS = ["нефть", "недр", "месторождение"]  # Слова, которые игнорируются
 
 def clean_url(url):
