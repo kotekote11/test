@@ -49,30 +49,29 @@ def save_sent_news(sent_news):
     with open(SENT_LIST_FILE, 'w') as file:
         json.dump(sent_news, file)
 
-def search_news():
-    """Поиск новостей на Google по заданным запросам."""
+def search_news(keyword):
+    """Поиск новостей на Google по заданному запросу."""
+    query = f'https://www.google.ru/search?q={keyword}&hl=ru&tbs=qdr:d'  # Поиск за последний день
+    response = requests.get(query)
+    response.raise_for_status()
+    
+    soup = BeautifulSoup(response.text, 'html.parser')
     news = []
-    for keyword in KEYWORDS:
-        query = f'https://www.google.ru/search?q={keyword}&hl=ru&tbs=qdr:d'  # Поиск за последний день
-        response = requests.get(query)
-        response.raise_for_status()
+
+    # Найдем заголовки новостей и ссылки
+    for item in soup.find_all('h3'):
+        title = item.get_text()
+        link = item.find_parent('a')['href']
+        cleaned_link = clean_url(link)
         
-        soup = BeautifulSoup(response.text, 'html.parser')
+        # Проверяем, что ссылка рабочая
+        try:
+            if requests.head(cleaned_link).status_code == 200:
+                news.append({'title': title, 'link': cleaned_link})
+        except requests.exceptions.RequestException:
+            logging.warning(f"Некорректная ссылка: {cleaned_link}")
 
-        # Найдем заголовки новостей и ссылки
-        for item in soup.find_all('h3'):
-            title = item.get_text()
-            link = item.find_parent('a')['href']
-            cleaned_link = clean_url(link)
-            
-            # Проверяем, что ссылка рабочая
-            try:
-                if requests.head(cleaned_link).status_code == 200:
-                    news.append({'title': title, 'link': cleaned_link})
-            except requests.exceptions.RequestException:
-                logging.warning(f"Некорректная ссылка: {cleaned_link}")
-
-    logging.debug(f"Найдено новостей: {len(news)}")
+    logging.debug(f"Найдено новостей по запросу '{keyword}': {len(news)}")
     return news
 
 def send_message(text):
@@ -90,44 +89,42 @@ def send_message(text):
         return True
     except requests.exceptions.RequestException as e:
         logging.error(f"Ошибка отправки сообщения: {e}")
-
         return False
 
 def send_random_news():
     """Отправляет одну случайную новость в канал."""
-    news = search_news()
-    
-    # Загружаем уже отправленные новости
-    sent_news = load_sent_news()
+    sent_news = load_sent_news()  # Загружаем уже отправленные новости
+
     sent_titles = {item['title'] for item in sent_news}  # Используем множество для более быстрой проверки
 
-    # Фильтруем новости по заголовкам, запрещенным словам и сайтам
-    filtered_news = []
-    for item in news:
-        title = item['title']
-        link = item['link']
-        site = link.split('/')[2]  # Извлекаем домен из ссылки
+    for keyword in KEYWORDS:
+        news = search_news(keyword)
 
-        # Проверяем на наличие запрещенных слов и сайтов
-        if title not in sent_titles and not any(word in title.lower() for word in IGNORE_WORDS) and not any(site in link for site in IGNORE_SITES):
-            filtered_news.append(item)
+        # Фильтруем новости по заголовкам, запрещенным словам и сайтам
+        filtered_news = []
+        for item in news:
+            title = item['title']
+            link = item['link']
+            site = link.split('/')[2]  # Извлекаем домен из ссылки
 
-    if filtered_news:
-        random_news = random.choice(filtered_news)
-        title = random_news['title']
-        link = random_news['link']
-        
-        # Формируем текст сообщения с хештегами
-        message_text = f"{title}\n{link}\n⛲@MonitoringFontan📰#MonitoringFontan"
+            # Проверяем на наличие запрещенных слов и сайтов
+            if title not in sent_titles and not any(word in title.lower() for word in IGNORE_WORDS) and not any(site in link for site in IGNORE_SITES):
+                filtered_news.append(item)
 
-        # Отправка сообщения
-        if send_message(message_text):
-            # Сохраняем отправленную новость
-            sent_news.append({'title': title, 'link': link})
-            save_sent_news(sent_news)
-            logging.info(f"Отправлена новость: {title}")
-    else:
-        logging.info("Нет новых новостей для отправки.")
+        if filtered_news:
+            random_news = random.choice(filtered_news)
+            title = random_news['title']
+            link = random_news['link']
+            
+            # Формируем текст сообщения с хештегами
+            message_text = f"{title}\n{link}\n⛲@MonitoringFontan📰#MonitoringFontan"
+
+            # Отправка сообщения
+            if send_message(message_text):
+                # Сохраняем отправленную новость
+                sent_news.append({'title': title, 'link': link})
+                save_sent_news(sent_news)
+                logging.info(f"Отправлена новость: {title}")
 
 def cleanup_sent_news(num_of_iterations):
     """Очищает файл, оставляя только последние 9 записей каждые 90 итераций."""
