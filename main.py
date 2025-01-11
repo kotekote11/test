@@ -31,7 +31,7 @@ def send_telegram_message(message_text):
 
 def search_news():
     """Ищет новости по ключевым словам на Google."""
-    query = f'https://www.google.ru/search?q={KEYWORDS}'  # Поиск за День
+    query = f'https://www.google.ru/search?q={KEYWORDS}&hl=ru&tbs=qdr:d'  # Поиск за День
     response = requests.get(query)
     soup = BeautifulSoup(response.text, 'html.parser')
 
