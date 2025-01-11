@@ -1,131 +1,103 @@
 import os
-import logging
-import random
 import requests
+from bs4 import BeautifulSoup
+import logging
 import json
 import time
-from bs4 import BeautifulSoup
-
-# Получаем токен API и ID канала из переменных окружения
-API_TOKEN = os.getenv("API_TOKEN")
-CHANNEL_ID = os.getenv("CHANNEL_ID")
-KEYWORDS = "фонтан музыкальный открытие фонтана"  # Ваши ключевые слова
-SENT_LIST_FILE = 'google.json'  # Файл для хранения отправленных новостей
-
-# Список запрещенных слов
-DISALLOWED_WORDS = {"нефть", "недр", "месторождени", "ФОНТАНКА.ру"}
 
 # Настройка логирования
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# Загружаем переменные окружения
+API_TOKEN = os.getenv("API_TOKEN")  # Токен Telegram
+CHANNEL_ID = os.getenv("CHANNEL_ID")  # Идентификатор канала
+SENT_LIST_FILE = 'google.json'  # Файл для хранения отправленных новостей
+
+# Ключевые слова для поиска
+KEYWORDS = "фонтан открытие"
+IGNORE_WORDS = ["нефть", "недр", "месторождение"]  # Слова, которые игнорируются
+IGNORE_SITES = ["example.com", "anotherexample.com"]  # Сайты, которые игнорируются
+
 def clean_url(url):
-    """Очищает URL от '/url?q=' и лишних параметров после '&sa=U&ved'."""
-    if url.startswith('/url?q='):
-        url = url[len('/url?q='):]
-    if '&sa=U&ved' in url:
-        url = url.split('&sa=U&ved')[0]
-    return url
+    """Очищает URL, оставляя только нужный адрес."""
+    url = url[len('/url?q='):]  # Убираем префикс
+    return url.split('&sa=U&ved')[0]  # Убираем лишние параметры
 
-def load_sent_news():
-    """Загружает уже отправленные новости из файла."""
-    try:
-        with open(SENT_LIST_FILE, 'r') as file:
-            return json.load(file)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return []  # Если файл не существует или пуст, возвращаем пустой список
-
-def save_sent_news(sent_news):
-    """Сохраняет уже отправленные новости в файл."""
-    with open(SENT_LIST_FILE, 'w') as file:
-        json.dump(sent_news, file)
+def send_telegram_message(message_text):
+    """Отправляет сообщение в Telegram."""
+    url = f'https://api.telegram.org/bot{API_TOKEN}/sendMessage'
+    data = {
+        'chat_id': CHANNEL_ID,
+        'text': message_text,
+        'parse_mode': 'HTML'
+    }
+    response = requests.post(url, data=data)
+    return response.json()
 
 def search_news():
-    """Поиск новостей на Google по заданному запросу."""
-    query = f'https://www.google.ru/search?q={KEYWORDS}&hl=ru&tbs=qdr:d'  # Поиск за последний день
+    """Ищет новости по ключевым словам на Google."""
+    query = f'https://www.google.ru/search?q={KEYWORDS}&hl=ru&tbs=qdr:d'  # Поиск за День
     response = requests.get(query)
-    response.raise_for_status()
-    
     soup = BeautifulSoup(response.text, 'html.parser')
-    news = []
 
-    # Найдем заголовки новостей и ссылки
+    news_items = []
     for item in soup.find_all('h3'):
-        title = item.get_text()
-        link = item.find_parent('a')['href']
-        cleaned_link = clean_url(link)
-        
-        # Проверяем, что ссылка рабочая
-        try:
-            if requests.head(cleaned_link).status_code == 200:
-                news.append({'title': title, 'link': cleaned_link})
-        except requests.exceptions.RequestException:
-            logging.warning(f"Некорректная ссылка: {cleaned_link}")
+        link = item.find_parent('a')  # Получаем родительский элемент <a>
+        if link:
+            cleaned_link = clean_url(link['href'])
+            title = item.get_text(strip=True)
 
-    logging.debug(f"Найдено новостей: {len(news)}")
-    return news
+            # Проверяем, не содержится ли в заголовке игнорируемые слова
+            if any(word in title.lower() for word in IGNORE_WORDS):
+                logging.debug(f'Игнорируем заголовок: {title}')
+                continue
 
-def send_message(text):
-    """Отправка сообщения в канал."""
-    url = f"https://api.telegram.org/bot{API_TOKEN}/sendMessage"
-    payload = {
-        'chat_id': CHANNEL_ID,
-        'text': text,
-        'parse_mode': 'HTML'  # Используйте HTML для форматирования
-    }
-    try:
-        response = requests.post(url, json=payload)
-        response.raise_for_status()
-        logging.info("Сообщение успешно отправлено.")
-        return True
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Ошибка отправки сообщения: {e}")
-        return False
+            # Проверяем, не принадлежит ли сайт к игнорируемым
+            if any(site in cleaned_link for site in IGNORE_SITES):
+                logging.debug(f'Игнорируем сайт: {cleaned_link}')
+                continue
 
-def send_random_news():
-    """Отправляет одну случайную новость в канал."""
-    news = search_news()
+            if requests.head(cleaned_link).status_code == 200:  # Проверяем доступность ссылки
+                news_items.append({'title': title, 'link': cleaned_link})
 
-    # Загружаем уже отправленные новости
-    sent_news = load_sent_news()
-    sent_titles = [item['title'] for item in sent_news]
+    return news_items
 
-    # Фильтруем новости по заголовкам и запрещенным словам
-    new_news = [item for item in news if item['title'] not in sent_titles]
-    filtered_news = [item for item in new_news if not any(word in item['title'].lower() for word in DISALLOWED_WORDS)]
+def load_sent_list():
+    """Загружает список отправленных новостей из файла."""
+    if os.path.exists(SENT_LIST_FILE):
+        with open(SENT_LIST_FILE, 'r') as file:
+            return json.load(file)
+    return []
 
-    if filtered_news:
+def save_sent_list(sent_list):
+    """Сохраняет список отправленных новостей в файл."""
+    with open(SENT_LIST_FILE, 'w') as file:
+        json.dump(sent_list, file)
 
-        random_news = random.choice(filtered_news)
-        title = random_news['title']
-        link = random_news['link']
-        
-        # Формируем текст сообщения с хештегами
-        message_text = f"{title}\n{link}\n⛲@MonitoringFontan📰#MonitoringFontan"
+def main():
+    sent_list = load_sent_list()  # Загружаем список отправленных новостей
+    repeat_count = 0
 
-        # Отправка сообщения
-        if send_message(message_text):
-            # Сохраняем отправленную новость
-            sent_news.append({'title': title, 'link': link})
-            save_sent_news(sent_news)
-            logging.info(f"Отправлена новость: {title}")
-    else:
-        logging.info("Нет новых новостей для отправки.")
-
-def cleanup_sent_news(num_of_iterations):
-    """Очищает файл, оставляя только последние 9 записей каждые 90 итераций."""
-    if num_of_iterations % 90 == 0:
-        sent_news = load_sent_news()  # Загружаем все отправленные новости
-        if len(sent_news) > 9:
-            send_news_to_keep = sent_news[-9:]  # Храним только последние 9 записей
-            save_sent_news(send_news_to_keep)  # Сохраняем их в файл
-            logging.info("Очистка старых новостей завершена, оставлены только последние 9 записей.")
-
-if __name__ == '__main__':
-    num_iterations = 0
     while True:
-        send_random_news()  # Отправляем новости
-        num_iterations += 1
+        news_items = search_news()
+        logging.info(f'Найдено {len(news_items)} новостей.')
 
-        cleanup_sent_news(num_iterations)  # Очищаем старые записи при необходимости
+        for news in news_items:
+            if news['link'] not in sent_list:  # Если новость еще не отправлена
 
-        time.sleep(300)  # Пауза перед следующим запросом (5 минут)
+                message_text = f"{news['title']}\n{news['link']}\n⛲@MonitoringFontan\n📰#MonitoringFontan"
+                send_telegram_message(message_text)
+                sent_list.append(news['link'])  # Добавляем ссылку в список отправленных
+                logging.info(f'Отправлено: {news["title"]}')
+
+        repeat_count += 1
+
+        # Удаляем все записи в файле, кроме последних 9, каждые 90 повторов
+        if repeat_count % 90 == 0:
+            sent_list = sent_list[-9:]  # Оставляем только последние 9 записей
+            save_sent_list(sent_list)  # Сохраняем обновленный список
+
+        time.sleep(300)  # Пауза 5 минут
+
+if __name__ == "__main__":
+    main()
