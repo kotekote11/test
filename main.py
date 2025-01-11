@@ -19,8 +19,8 @@ KEYWORDS = [
 ]
 
 # Списки игнорирования
-IGNORE_WORDS = {"нефть", "недр", "месторождение"},  # Запрещенные слова
-IGNORE_SITES = {"instagram", "livejournal", "fontanka"}  # Запрещенные сайты
+IGNORE_WORDS = ["нефть", "недр", "месторождение"]  # Запрещенные слова должны быть в списке
+IGNORE_SITES = ["instagram", "livejournal", "fontanka"]  # Запрещенные сайты
 
 # Настройка логирования
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -90,9 +90,9 @@ def search_yandex(keyword):
         cleaned_link = clean_url(link)
 
         # Проверяем, что ссылка рабочая
+
         try:
             if requests.head(cleaned_link).status_code == 200:
-
                 news.append({'title': title, 'link': cleaned_link})
         except requests.exceptions.RequestException:
             logging.warning(f"Некорректная ссылка: {cleaned_link}")
