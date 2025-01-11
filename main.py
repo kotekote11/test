@@ -5,6 +5,7 @@ import requests
 import json
 import time
 from bs4 import BeautifulSoup
+from yandex import yandex
 
 # Получаем токен API и ID канала из переменных окружения
 API_TOKEN = os.getenv("API_TOKEN")
