@@ -94,7 +94,7 @@ def send_random_news():
         link = random_news['link']
         
         # Формируем текст сообщения с хештегом #fontan
-        message_text = f"{title}\n{link}\n⛲@MonitoringFontan📰#MonitoringFontan"
+        message_text = f"{title}\n{link}\n⛲@MonitoringFontan📰#MonitoringFontan📱"
 
         # Отправка сообщения
 
