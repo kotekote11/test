@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 # Получаем токен API и ID канала из переменных окружения
 API_TOKEN = os.getenv("API_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
-KEYWORDS = "фонтан открытие"  # Ваши ключевые слова
+KEYWORDS = "фонтан музыкальный открытие фонтана"  # Ваши ключевые слова
 SENT_LIST_FILE = 'google.json'  # Файл для хранения отправленных новостей
 
 # Список запрещенных слов
