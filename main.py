@@ -1,131 +1,112 @@
-import os
-import logging
-import random
-import requests
 import json
+import logging
+import os
 import time
-from bs4 import BeautifulSoup
+from datetime import datetime
+from os import getenv
+from requests.exceptions import ConnectionError
+from telegram import Bot
+from telegram import InlineQueryResultArticle, InputTextMessageContent
+from telegram.ext import CallbackQueryHandler, InlineQueryHandler, Updater
 
-# Получаем токен API и ID канала из переменных окружения
+logging.basicConfig(filename='main.log', level=logging.DEBUG)
+
 API_TOKEN = os.getenv("API_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
-KEYWORDS = "фонтан музыкальный открытие фонтана"  # Ваши ключевые слова
-SENT_LIST_FILE = 'google.json'  # Файл для хранения отправленных новостей
+SENT_LIST_FILE = 'google.json'
 
-# Список запрещенных слов
-DISALLOWED_WORDS = {"нефть", "недр", "месторождени", "ФОНТАНКА.ру"}
+KEYWORDS = "открытие фонтанов"
+IGNORE_SITES = ["instagram", "livejournal", "fontanka"]
+IGNORE_WORDS = ["нефть", "недр", "месторождение"]
 
-# Настройка логирования
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+bot = Bot(token=API_TOKEN)
 
-def clean_url(url):
-    """Очищает URL от '/url?q=' и лишних параметров после '&sa=U&ved'."""
-    if url.startswith('/url?q='):
-        url = url[len('/url?q='):]
-    if '&sa=U&ved' in url:
-        url = url.split('&sa=U&ved')[0]
+def query(url: str):
+    try:
+        response = requests.head(url, allow_redirects=True)
+        if response.status_code == 200:
+            return response.url
+        else:
+            return None
+    except ConnectionError:
+        return None
+
+def clean_url(url: str):
+    url = url[len('/url?q='):]
+    url = url.split('&sa=U&ved')[0]
     return url
 
-def load_sent_news():
-    """Загружает уже отправленные новости из файла."""
-    try:
-        with open(SENT_LIST_FILE, 'r') as file:
-            return json.load(file)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return []  # Если файл не существует или пуст, возвращаем пустой список
+def send_message(title: str, link: str):
+    if any(word in link for word in IGNORE_WORDS):
+        return
+    cleaned_link = clean_url(link)
+    if any(site in cleaned_link for site in IGNORE_SITES):
+        return
+    if requests.head(cleaned_link).status_code == 200:
+        with open(SENT_LIST_FILE) as file:
+            sent_list = json.load(file)
+        if cleaned_link not in sent_list:
+            message_text = f"{title}\n{link}\n⛲@MonitoringFontan📰#MonitoringFontan"
+            bot.send_message(chat_id=CHANNEL_ID, text=message_text)
+            sent_list.append(cleaned_link)
+            save_sent_list(sent_list)
 
-def save_sent_news(sent_news):
-    """Сохраняет уже отправленные новости в файл."""
+def save_sent_list(sent_list):
     with open(SENT_LIST_FILE, 'w') as file:
-        json.dump(sent_news, file)
+        json.dump(sent_list, file, indent=2, ensure_ascii=False)
 
-def search_news():
-    """Поиск новостей на Google по заданному запросу."""
-    query = f'https://www.google.ru/search?q={KEYWORDS}&hl=ru&tbs=qdr:d'  # Поиск за последний день
-    response = requests.get(query)
-    response.raise_for_status()
-    
-    soup = BeautifulSoup(response.text, 'html.parser')
-    news = []
+def inlinequery(update, context):
+    query = update.inline_query.query
+    if not query:
+        return
+    if KEYWORDS in query.lower():
+        with open(SENT_LIST_FILE) as file:
+            sent_list = json.load(file)
+        results = []
+        for url in sent_list:
+            title = url.split('/')[-1].replace('.html', '').replace('-', ' ').title()
+            results.append(
+                InlineQueryResultArticle(
+                    id=url,
+                    title=title,
+                    input_message_content=InputTextMessageContent(message_text=f"{title}\n{url}")
+                )
+            )
+        update.inline_query.answer(results)
 
-    # Найдем заголовки новостей и ссылки
-    for item in soup.find_all('h3'):
-        title = item.get_text()
-        link = item.find_parent('a')['href']
-        cleaned_link = clean_url(link)
-        
-        # Проверяем, что ссылка рабочая
+def callbackquery(update, context):
+    query = update.callback_query
+    if query.data == 'get_new':
+        check_new_posts()
+
+def check_new_posts():
+    repeat_count = 0
+    while True:
         try:
-            if requests.head(cleaned_link).status_code == 200:
-                news.append({'title': title, 'link': cleaned_link})
-        except requests.exceptions.RequestException:
-            logging.warning(f"Некорректная ссылка: {cleaned_link}")
-
-    logging.debug(f"Найдено новостей: {len(news)}")
-    return news
-
-def send_message(text):
-    """Отправка сообщения в канал."""
-    url = f"https://api.telegram.org/bot{API_TOKEN}/sendMessage"
-    payload = {
-        'chat_id': CHANNEL_ID,
-        'text': text,
-        'parse_mode': 'HTML'  # Используйте HTML для форматирования
-    }
-    try:
-        response = requests.post(url, json=payload)
-        response.raise_for_status()
-        logging.info("Сообщение успешно отправлено.")
-        return True
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Ошибка отправки сообщения: {e}")
-        return False
-
-def send_random_news():
-    """Отправляет одну случайную новость в канал."""
-    news = search_news()
-
-    # Загружаем уже отправленные новости
-    sent_news = load_sent_news()
-    sent_titles = [item['title'] for item in sent_news]
-
-    # Фильтруем новости по заголовкам и запрещенным словам
-    new_news = [item for item in news if item['title'] not in sent_titles]
-    filtered_news = [item for item in new_news if not any(word in item['title'].lower() for word in DISALLOWED_WORDS)]
-
-    if filtered_news:
-
-        random_news = random.choice(filtered_news)
-        title = random_news['title']
-        link = random_news['link']
-        
-        # Формируем текст сообщения с хештегами
-        message_text = f"{title}\n{link}\n⛲@MonitoringFontan📰#MonitoringFontan"
-
-        # Отправка сообщения
-        if send_message(message_text):
-            # Сохраняем отправленную новость
-            sent_news.append({'title': title, 'link': link})
-            save_sent_news(sent_news)
-            logging.info(f"Отправлена новость: {title}")
-    else:
-        logging.info("Нет новых новостей для отправки.")
-
-def cleanup_sent_news(num_of_iterations):
-    """Очищает файл, оставляя только последние 9 записей каждые 90 итераций."""
-    if num_of_iterations % 90 == 0:
-        sent_news = load_sent_news()  # Загружаем все отправленные новости
-        if len(sent_news) > 9:
-            send_news_to_keep = sent_news[-9:]  # Храним только последние 9 записей
-            save_sent_news(send_news_to_keep)  # Сохраняем их в файл
-            logging.info("Очистка старых новостей завершена, оставлены только последние 9 записей.")
+            google_query = f'https://www.google.ru/search?q={KEYWORDS}&hl=ru&tbs=qdr:d'
+            response = requests.get(google_query)
+            soup = BeautifulSoup(response.text, 'html.parser')
+            posts = soup.find_all('h3')
+            for post in posts:
+                link = post.find('a').get('href')
+                title = post.text
+                send_message(title, link)
+            time.sleep(300)
+            repeat_count += 1
+            if repeat_count % 90 == 0:
+                with open(SENT_LIST_FILE) as file:
+                    sent_list = json.load(file)
+                sent_list = sent_list[-9:]
+                save_sent_list(sent_list)
+        except Exception as e:
+            logging.error(e)
+            time.sleep(300)
 
 if __name__ == '__main__':
-    num_iterations = 0
-    while True:
-        send_random_news()  # Отправляем новости
-        num_iterations += 1
+    updater = Updater(API_TOKEN, use_context=True)
+    dispatcher = updater.dispatcher
+    dispatcher.add_handler(CallbackQueryHandler(callbackquery))
+    dispatcher.add_handler(InlineQueryHandler(inlinequery))
 
-        cleanup_sent_news(num_iterations)  # Очищаем старые записи при необходимости
-
-        time.sleep(300)  # Пауза перед следующим запросом (5 минут)
+    updater.start_webhook(listen="0.0.0.0", port=int(getenv("PORT", 5000)), url_path=API_TOKEN)
+    updater.idle()
