@@ -5,7 +5,6 @@ import requests
 import json
 import time
 from bs4 import BeautifulSoup
-from my_yandex import my_yandex
 
 # Получаем токен API и ID канала из переменных окружения
 API_TOKEN = os.getenv("API_TOKEN")
@@ -20,14 +19,14 @@ KEYWORDS = [
 ]
 
 # Списки игнорирования
-IGNORE_WORDS = {"нефть", "недр", "месторождение"}  # Запрещенные слова
+IGNORE_WORDS = {"нефть", "недр", "месторождение"},  # Запрещенные слова
 IGNORE_SITES = {"instagram", "livejournal", "fontanka"}  # Запрещенные сайты
 
 # Настройка логирования
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def clean_url(url):
-    """Очищает URL от '/url?q=' и лишних параметров после '&sa=U&ved'."""
+    """Очищает URL от '/url?q=' и лишних параметров."""
     if url.startswith('/url?q='):
         url = url[len('/url?q='):]
     if '&sa=U&ved' in url:
@@ -50,7 +49,7 @@ def save_sent_news(sent_news):
     with open(SENT_LIST_FILE, 'w') as file:
         json.dump(sent_news, file)
 
-def search_news(keyword):
+def search_google(keyword):
     """Поиск новостей на Google по заданному запросу."""
     query = f'https://www.google.ru/search?q={keyword}&hl=ru&tbs=qdr:d'  # Поиск за последний день
     response = requests.get(query)
@@ -68,6 +67,32 @@ def search_news(keyword):
         # Проверяем, что ссылка рабочая
         try:
             if requests.head(cleaned_link).status_code == 200:
+                news.append({'title': title, 'link': cleaned_link})
+        except requests.exceptions.RequestException:
+            logging.warning(f"Некорректная ссылка: {cleaned_link}")
+
+    logging.debug(f"Найдено новостей по запросу '{keyword}': {len(news)}")
+    return news
+
+def search_yandex(keyword):
+    """Поиск новостей на Yandex по заданному запросу."""
+    query = f'https://yandex.ru/search/?text={keyword}&within=77'  # Поиск с учетом радиуса 77 км
+    response = requests.get(query)
+    response.raise_for_status()
+    
+    soup = BeautifulSoup(response.text, 'html.parser')
+    news = []
+
+    # Найдем заголовки новостей и ссылки
+    for item in soup.find_all('h3'):
+        title = item.get_text()
+        link = item.find_parent('a')['href']
+        cleaned_link = clean_url(link)
+
+        # Проверяем, что ссылка рабочая
+        try:
+            if requests.head(cleaned_link).status_code == 200:
+
                 news.append({'title': title, 'link': cleaned_link})
         except requests.exceptions.RequestException:
             logging.warning(f"Некорректная ссылка: {cleaned_link}")
@@ -95,15 +120,18 @@ def send_message(text):
 def send_random_news():
     """Отправляет одну случайную новость в канал."""
     sent_news = load_sent_news()  # Загружаем уже отправленные новости
-
     sent_titles = {item['title'] for item in sent_news}  # Используем множество для более быстрой проверки
 
     for keyword in KEYWORDS:
-        news = search_news(keyword)
+        news_from_google = search_google(keyword)  # Поиск на Google
+        news_from_yandex = search_yandex(keyword)  # Поиск на Yandex
+
+        # Объединяем новости из обоих источников
+        all_news = news_from_google + news_from_yandex
 
         # Фильтруем новости по заголовкам, запрещенным словам и сайтам
         filtered_news = []
-        for item in news:
+        for item in all_news:
             title = item['title']
             link = item['link']
             site = link.split('/')[2]  # Извлекаем домен из ссылки
