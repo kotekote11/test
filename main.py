@@ -1,175 +1,128 @@
 import os
-import logging
-import random
-import requests
 import json
 import time
+import asyncio
+import logging
+import requests
 from bs4 import BeautifulSoup
+import aiohttp
+from typing import List, Set
 
-# Получаем токен API и ID канала из переменных окружения
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+# Environment variables
 API_TOKEN = os.getenv("API_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
-SENT_LIST_FILE = 'google.json'  # Файл для хранения отправленных новостей
+SENT_LIST_FILE = 'google.json'
 
-# Ключевые слова
+# Keywords and filters
 KEYWORDS = [
-    "открытие фонтанов",
-    "открытие фонтанов 2025",
+    "открытие фонтанов", 
+    "открытие фонтанов 2025", 
     "открытие музыкального фонтана"
 ]
+IGNORE_WORDS: Set[str] = {"нефть", "недр", "месторождение"}
+IGNORE_SITES: Set[str] = {"instagram", "livejournal", "fontanka"}
 
-# Списки игнорирования
-IGNORE_WORDS = ["нефть", "недр", "месторождение"]  # Запрещенные слова должны быть в списке
-IGNORE_SITES = ["instagram", "livejournal", "fontanka"]  # Запрещенные сайты
-
-# Настройка логирования
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
-
-def clean_url(url):
-    """Очищает URL от '/url?q=' и лишних параметров."""
-    if url.startswith('/url?q='):
-        url = url[len('/url?q='):]
-    if '&sa=U&ved' in url:
-        url = url.split('&sa=U&ved')[0]
+def clean_url(url: str) -> str:
+    """Clean and extract the original URL."""
+    url = url[len('/url?q='):] if '/url?q=' in url else url
+    url = url.split('&sa=U&ved')[0]
     return url
 
-def load_sent_news():
-    """Загружает уже отправленные новости из файла или создает файл, если его нет."""
-    if os.path.exists(SENT_LIST_FILE):
-        try:
-            with open(SENT_LIST_FILE, 'r') as file:
-                return json.load(file)
-        except (FileNotFoundError, json.JSONDecodeError):
-            logging.warning("Ошибка при загрузке отправленных новостей, создается новый список.")
-            return []  # Если файл не существует или пуст, возвращаем пустой список
-    return []  # Если файл не существует, возвращаем пустой список
-
-def save_sent_news(sent_news):
-    """Сохраняет уже отправленные новости в файл."""
-    with open(SENT_LIST_FILE, 'w') as file:
-        json.dump(sent_news, file)
-
-def search_google(keyword):
-    """Поиск новостей на Google по заданному запросу."""
-    query = f'https://www.google.ru/search?q={keyword}&hl=ru&tbs=qdr:d'  # Поиск за последний день
-    response = requests.get(query)
-    response.raise_for_status()
-    
-    soup = BeautifulSoup(response.text, 'html.parser')
-    news = []
-
-    # Найдем заголовки новостей и ссылки
-    for item in soup.find_all('h3'):
-        title = item.get_text()
-        link = item.find_parent('a')['href']
-        cleaned_link = clean_url(link)
-        
-        # Проверяем, что ссылка рабочая
-        try:
-            if requests.head(cleaned_link).status_code == 200:
-                news.append({'title': title, 'link': cleaned_link})
-        except requests.exceptions.RequestException:
-            logging.warning(f"Некорректная ссылка: {cleaned_link}")
-
-    logging.debug(f"Найдено новостей по запросу '{keyword}': {len(news)}")
-    return news
-
-def search_yandex(keyword):
-    """Поиск новостей на Yandex по заданному запросу."""
-    query = f'https://yandex.ru/search/?text={keyword}&within=0'  # Поиск с учетом радиуса 77 км
-    response = requests.get(query)
-    response.raise_for_status()
-    
-    soup = BeautifulSoup(response.text, 'html.parser')
-    news = []
-
-    # Найдем заголовки новостей и ссылки
-    for item in soup.find_all('h3'):
-        title = item.get_text()
-        link = item.find_parent('a')['href']
-        cleaned_link = clean_url(link)
-
-        # Проверяем, что ссылка рабочая
-
-        try:
-            if requests.head(cleaned_link).status_code == 200:
-                news.append({'title': title, 'link': cleaned_link})
-        except requests.exceptions.RequestException:
-            logging.warning(f"Некорректная ссылка: {cleaned_link}")
-
-    logging.debug(f"Найдено новостей по запросу '{keyword}': {len(news)}")
-    return news
-
-def send_message(text):
-    """Отправка сообщения в канал."""
-    url = f"https://api.telegram.org/bot{API_TOKEN}/sendMessage"
-    payload = {
-        'chat_id': CHANNEL_ID,
-        'text': text,
-        'parse_mode': 'HTML'  # Используйте HTML для форматирования
-    }
+def load_sent_list() -> List[str]:
+    """Load previously sent links."""
     try:
-        response = requests.post(url, json=payload)
-        response.raise_for_status()
-        logging.info("Сообщение успешно отправлено.")
-        return True
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Ошибка отправки сообщения: {e}")
-        return False
+        with open(SENT_LIST_FILE, 'r') as file:
+            return json.load(file)
+    except FileNotFoundError:
+        return []
 
-def send_random_news():
-    """Отправляет одну случайную новость в канал."""
-    sent_news = load_sent_news()  # Загружаем уже отправленные новости
-    sent_titles = {item['title'] for item in sent_news}  # Используем множество для более быстрой проверки
+def save_sent_list(sent_list: List[str]):
+    """Save sent links to file."""
+    with open(SENT_LIST_FILE, 'w') as file:
+        json.dump(sent_list, file)
 
-    for keyword in KEYWORDS:
-        news_from_google = search_google(keyword)  # Поиск на Google
-        news_from_yandex = search_yandex(keyword)  # Поиск на Yandex
+async def send_telegram_message(bot_token: str, chat_id: str, message: str):
+    """Send message via Telegram Bot API."""
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, data={
+            'chat_id': chat_id,
+            'text': message
+        }) as response:
+            return await response.json()
 
-        # Объединяем новости из обоих источников
-        all_news = news_from_google + news_from_yandex
+async def search_and_monitor(keyword: str):
+    """Search and monitor results for a specific keyword."""
+    sent_list = load_sent_list()
+    repeat_count = 0
 
-        # Фильтруем новости по заголовкам, запрещенным словам и сайтам
-        filtered_news = []
-        for item in all_news:
-            title = item['title']
-            link = item['link']
-            site = link.split('/')[2]  # Извлекаем домен из ссылки
-
-            # Проверяем на наличие запрещенных слов и сайтов
-            if title not in sent_titles and not any(word in title.lower() for word in IGNORE_WORDS) and not any(site in link for site in IGNORE_SITES):
-                filtered_news.append(item)
-
-        if filtered_news:
-            random_news = random.choice(filtered_news)
-            title = random_news['title']
-            link = random_news['link']
-            
-            # Формируем текст сообщения с хештегами
-            message_text = f"{title}\n{link}\n⛲@MonitoringFontan📰#MonitoringFontan"
-
-            # Отправка сообщения
-            if send_message(message_text):
-                # Сохраняем отправленную новость
-                sent_news.append({'title': title, 'link': link})
-                save_sent_news(sent_news)
-                logging.info(f"Отправлена новость: {title}")
-
-def cleanup_sent_news(num_of_iterations):
-    """Очищает файл, оставляя только последние 9 записей каждые 90 итераций."""
-    if num_of_iterations % 90 == 0:
-        sent_news = load_sent_news()  # Загружаем все отправленные новости
-        if len(sent_news) > 9:
-            sent_news = sent_news[-9:]  # Храним только последние 9 записей
-            save_sent_news(sent_news)  # Сохраняем их в файл
-            logging.info("Очистка старых новостей завершена, оставлены только последние 9 записей.")
-
-if __name__ == '__main__':
-    num_iterations = 0
     while True:
-        send_random_news()  # Отправляем новости
-        num_iterations += 1
+        try:
+            # Google search
+            google_query = f'https://www.google.ru/search?q={keyword}&hl=ru&tbs=qdr:d'
+            # Yandex search
+            yandex_query = f'https://yandex.ru/search/?text={keyword}&within=77'
 
-        cleanup_sent_news(num_iterations)  # Очищаем старые записи при необходимости
+            # Perform searches (you'll need to implement actual search logic)
+            # This is a placeholder for web scraping
+            async with aiohttp.ClientSession() as session:
+                for query in [google_query, yandex_query]:
+                    async with session.get(query) as response:
+                        html = await response.text()
+                        soup = BeautifulSoup(html, 'html.parser')
+                        
+                        for result in soup.find_all('h3'):
+                            link = result.find('a')['href']
+                            title = result.text
+                            
+                            # URL cleaning and validation
+                            cleaned_link = clean_url(link)
+                            
+                            # Skip if link already sent or contains ignore words/sites
+                            if (cleaned_link in sent_list or 
+                                any(word in title.lower() for word in IGNORE_WORDS) or
+                                any(site in cleaned_link for site in IGNORE_SITES)):
+                                continue
+                            
+                            # Validate link
+                            try:
+                                response = requests.head(cleaned_link)
+                                if response.status_code != 200:
+                                    continue
+                            except Exception:
+                                continue
+                            
+                            # Prepare message
+                            message_text = f"{title}\n{cleaned_link}\n⛲@MonitoringFontan    📰#MonitoringFontan"
+                            
+                            # Send Telegram message
+                            await send_telegram_message(API_TOKEN, CHANNEL_ID, message_text)
+                            
+                            # Update sent list
+                            sent_list.append(cleaned_link)
+                            
+                            # Manage sent list size
+                            if repeat_count % 90 == 0:
+                                sent_list = sent_list[-9:]
+                                save_sent_list(sent_list)
+                            
+                            repeat_count += 1
 
-        time.sleep(300)  # Пауза перед следующим запросом (5 минут)
+            # Wait before next iteration
+            await asyncio.sleep(300)
+
+        except Exception as e:
+            logger.error(f"Error in search_and_monitor: {e}")
+            await asyncio.sleep(300)
+
+async def main():
+    """Main async function to run keyword monitoring."""
+    tasks = [search_and_monitor(keyword) for keyword in KEYWORDS]
+    await asyncio.gather(*tasks)
+
+if __name__ == "__main__":
+    asyncio.run(main())
