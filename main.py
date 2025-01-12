@@ -6,7 +6,7 @@ import asyncio
 import json
 from bs4 import BeautifulSoup
 
-# Устанавливаем параметры логирования
+# Настройка логирования
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Получение токена API и ID канала из переменных окружения
@@ -77,28 +77,34 @@ async def search_google(session, keyword):
 async def search_yandex(session, keyword):
     """Поиск новостей на Yandex по заданному запросу."""
     query = f'https://yandex.ru/search/?text={keyword}&within=77'
-    async with session.get(query) as response:
-        response.raise_for_status()
-        soup = BeautifulSoup(await response.text(), 'html.parser')
-        news = []
+    
+    try:
+        async with session.get(query) as response:
+            response.raise_for_status()
+            soup = BeautifulSoup(await response.text(), 'html.parser')
+            news = []
 
-        # Найдем заголовки новостей и ссылки
-        for item in soup.find_all('h3'):
-            title = item.get_text()
-            link = item.find_parent('a')['href']
-            cleaned_link = clean_url(link)
+            # Найдем заголовки новостей и ссылки
+            for item in soup.find_all('h3'):
+                title = item.get_text()
+                link = item.find_parent('a')['href']
+                cleaned_link = clean_url(link)
 
-            # Добавляем новость
-            news.append({'title': title, 'link': cleaned_link})
 
-        logging.debug(f"Найдено новостей по запросу '{keyword}': {len(news)}")
-        return news
+                # Добавляем новость
+                news.append({'title': title, 'link': cleaned_link})
+
+            logging.debug(f"Найдено новостей по запросу '{keyword}': {len(news)}")
+            return news
+
+    except aiohttp.ClientResponseError as e:
+        logging.error(f"Ошибка при запросе к Yandex по ключевому слову '{keyword}': {e}")
+        return []  # Возвращаем пустой список при возникновении ошибки
 
 
 async def send_message(text):
     """Отправка сообщения в канал."""
     async with aiohttp.ClientSession() as session:
-
         url = f"https://api.telegram.org/bot{API_TOKEN}/sendMessage"
         payload = {
             'chat_id': CHANNEL_ID,
