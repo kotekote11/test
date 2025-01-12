@@ -76,7 +76,7 @@ def search_google(keyword):
 
 def search_yandex(keyword):
     """Поиск новостей на Yandex по заданному запросу."""
-    query = f'https://yandex.ru/search/?text={keyword}&within=77'  # Поиск с учетом радиуса 77 км
+    query = f'https://yandex.ru/search/?text={keyword}&within=0'  # Поиск с учетом радиуса 77 км
     response = requests.get(query)
     response.raise_for_status()
     
