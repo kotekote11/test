@@ -16,9 +16,9 @@ SENT_LIST_FILE = 'dump.json'  # Файл для хранения отправл�
 
 # Ключевые слова
 KEYWORDS = [
-    "открытие фонтанов",
     "открытие фонтанов 2025",
-    "открытие музыкального фонтана"
+    "открытие фонтанов 2026",
+    "открытие музыкального фонтана 2025"
 ]
 
 # Игнорируемые слова и сайты
@@ -55,7 +55,7 @@ async def save_sent_news(sent_news):
 
 async def search_google(session, keyword):
     """Поиск новостей на Google по заданному запросу."""
-    query = f'https://www.google.ru/search?q={keyword}&hl=ru&tbs=qdr:d'
+    query = f'https://www.google.ru/search?q={keyword}&hl=ru'
     async with session.get(query) as response:
         response.raise_for_status()
         soup = BeautifulSoup(await response.text(), 'html.parser')
@@ -76,7 +76,7 @@ async def search_google(session, keyword):
 
 async def search_yandex(session, keyword):
     """Поиск новостей на Yandex по заданному запросу."""
-    query = f'https://yandex.ru/search/?text={keyword}&within=77'
+    query = f'https://yandex.ru/search/?text={keyword}'
     
     try:
         async with session.get(query) as response:
@@ -147,7 +147,7 @@ async def send_random_news():
                 link = random_news['link']
 
                 # Формируем текст сообщения с хештегами
-                message_text = f"{title}\n{link}\n⛲@MonitoringFontan    📰#MonitoringFontan"
+                message_text = f"{title}\n{link}\n⛲@MonitoringFontan 📰#MonitoringFontan"
 
                 # Отправка сообщения
                 if await send_message(message_text):
