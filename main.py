@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 # Настройки Telegram API
 API_TOKEN = os.getenv("API_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
-SENT_LIST_FILE = 'dump.json'
+SENT_LIST_FILE = 'dum1p.json'
 
 # Ключевые слова для поиска
 KEYWORDS = [
@@ -137,7 +137,7 @@ async def check_news(sem, sent_set):
                 save_sent_list(list(sent_set))
 
                 # Случайная пауза между запросами
-                await asyncio.sleep(random.randint(5, 15))
+                await asyncio.sleep(random.randint(15, 25))
 
 # Основная функция
 async def main():
@@ -146,7 +146,7 @@ async def main():
 
     while True:
         await check_news(sem, sent_set)  # Проверка новостей
-        await asyncio.sleep(300)  # Проверка каждые 5 минут
+        await asyncio.sleep(1300)  # Проверка каждые 5 минут
 
 if __name__ == '__main__':
     asyncio.run(main())  # Запускаем основную функцию
