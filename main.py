@@ -70,7 +70,7 @@ user_agents = [
 
 # Функция для поиска новостей в Google
 async def search_google(session, keyword):
-    query = f'https://www.google.ru/search?q={keyword}&hl=ru&tbs=qdr:d'
+    query = f'https://www.google.ru/search?q={keyword}&hl=ru'
     headers = {
         'User-Agent': random.choice(user_agents)
     }
@@ -94,7 +94,7 @@ async def search_google(session, keyword):
 
 # Функция для поиска новостей в Yandex
 async def search_yandex(session, keyword):
-    query = f'https://yandex.ru/search/?text={keyword}&within=77'
+    query = f'https://yandex.ru/search/?text={keyword}'
     headers = {
         'User-Agent': random.choice(user_agents)
     }
