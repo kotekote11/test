@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 # Конфигурация и получение переменных окружения
 API_TOKEN = os.getenv("API_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
-SENT_LIST_FILE = 'dump.json'
+SENT_LIST_FILE = 'dump1.json'
 
 # Ключевые слова для поиска
 KEYWORDS = [
