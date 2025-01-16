@@ -86,8 +86,8 @@ async def search_google(session, keyword):
         for item in soup.find_all('h3'):
             parent_link = item.find_parent('a')
             if parent_link and 'href' in parent_link.attrs:
-
                 link = clean_url(parent_link['href'])
+
                 results.append((item.get_text(), link))
         
         return results
@@ -126,18 +126,25 @@ async def check_news(sem, sent_list):
                 news_from_google = await search_google(session, keyword)
                 news_from_yandex = await search_yandex(session, keyword)
                 
-                all_news = news_from_google + news_from_yandex
-
-                for title, link in all_news:
-                    # Игнорируем слова и сайты из списка IGNORE_WORDS и IGNORE_SITES
+                # Обработка новостей Google
+                for title, link in news_from_google:
                     if any(ignore in title for ignore in IGNORE_WORDS) or any(ignore in link for ignore in IGNORE_SITES):
                         continue
                     
-                    # Проверяем, были ли ссылки отправлены ранее
                     if link not in sent_list:
-                        sent_list.append(link)  # Добавляем новую ссылку в список
-                        message_text = f"{title}\n{link}\n⛲@MonitoringFontan📰#Фонтан"
-                        await send_message(session, message_text)  # Отправляем сообщение в Telegram
+                        sent_list.append(link)
+                        message_text = f"{title}\n{link}\n⛲@MonitoringFontan📰#google"
+                        await send_message(session, message_text)
+
+                # Обработка новостей Yandex
+                for title, link in news_from_yandex:
+                    if any(ignore in title for ignore in IGNORE_WORDS) or any(ignore in link for ignore in IGNORE_SITES):
+                        continue
+                    
+                    if link not in sent_list:
+                        sent_list.append(link)
+                        message_text = f"{title}\n{link}\n⛲@MonitoringFontan📰#yandex"
+                        await send_message(session, message_text)
                         
                 # Сохраняем отправленные ссылки после каждой проверки
                 save_sent_list(sent_list)
