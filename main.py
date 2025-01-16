@@ -6,10 +6,10 @@ import random
 from aiohttp import ClientSession
 from bs4 import BeautifulSoup
 
-# Конфигурация и получение переменных окружения
+# Настройки Telegram API
 API_TOKEN = os.getenv("API_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
-SENT_LIST_FILE = 'dump1.json'
+SENT_LIST_FILE = 'dump.json'
 
 # Ключевые слова для поиска
 KEYWORDS = [
@@ -25,19 +25,19 @@ IGNORE_SITES = {"instagram", "livejournal", "fontanka"}
 # Настройка логирования
 logging.basicConfig(level=logging.DEBUG)
 
-# Функция для загрузки ранее отправленных сообщений
+# Функция для загрузки ранее отправленных сообщений из файла
 def load_sent_list():
     if os.path.exists(SENT_LIST_FILE):
         with open(SENT_LIST_FILE, 'r', encoding='utf-8') as file:
             return json.load(file)
     return []
 
-# Функция для сохранения отправленных сообщений
+# Функция для сохранения отправленных сообщений в файл
 def save_sent_list(sent_list):
     with open(SENT_LIST_FILE, 'w', encoding='utf-8') as file:
         json.dump(sent_list, file)
 
-# Функция для очистки URL
+# Функция для очистки URL от лишних параметров
 def clean_url(url):
     url = url[len('/url?q='):]
     url = url.split('&sa=U&ved')[0]
@@ -96,34 +96,37 @@ async def search_yandex(session, keyword):
         results = []
         
         for item in soup.find_all('h2'):
+
             parent_link = item.find_parent('a')
             if parent_link and 'href' in parent_link.attrs:
-
                 link = clean_url(parent_link['href'])
                 results.append((item.get_text(), link))
         
         return results
 
-# Функция для проверки новостей
+# Функция для проверки новостей по ключевым словам
 async def check_news(sem, sent_list):
     async with ClientSession() as session:
         for keyword in KEYWORDS:
             async with sem:
                 logging.info(f'Проверка новостей для: {keyword}')
                 
+                # Получаем новости из Google и Yandex
                 news_from_google = await search_google(session, keyword)
                 news_from_yandex = await search_yandex(session, keyword)
                 
                 all_news = news_from_google + news_from_yandex
 
                 for title, link in all_news:
+                    # Игнорируем слова и сайты из списка IGNORE_WORDS и IGNORE_SITES
                     if any(ignore in title for ignore in IGNORE_WORDS) or any(ignore in link for ignore in IGNORE_SITES):
                         continue
                     
+                    # Проверяем, были ли ссылки отправлены ранее
                     if link not in sent_list:
-                        sent_list.append(link)
+                        sent_list.append(link)  # Добавляем новую ссылку в список
                         message_text = f"{title}\n{link}\n⛲@MonitoringFontan📰#Фонтан"
-                        await send_message(session, message_text)
+                        await send_message(session, message_text)  # Отправляем сообщение в Telegram
                         
                 # Сохраняем отправленные ссылки после каждой проверки
                 save_sent_list(sent_list)
@@ -134,11 +137,11 @@ async def check_news(sem, sent_list):
 # Основная функция
 async def main():
     sem = asyncio.Semaphore(5)  # Ограничение на количество параллельных запросов
-    sent_list = load_sent_list()
+    sent_list = load_sent_list()  # Загружаем уже отправленные ссылки
 
     while True:
-        await check_news(sem, sent_list)
+        await check_news(sem, sent_list)  # Проверка новостей
         await asyncio.sleep(300)  # Проверка каждые 5 минут
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    asyncio.run(main())  # Запускаем основную функцию
