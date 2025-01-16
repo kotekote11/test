@@ -4,7 +4,7 @@ import logging
 import aiohttp
 import asyncio
 from bs4 import BeautifulSoup
-from aiogram import Bot, Dispatcher
+from aiogram import Bot
 import random
 
 # Load environment variables
@@ -68,7 +68,6 @@ async def search_yandex(session, keyword):
 async def monitor():
     sent_list = load_sent_list()
     bot = Bot(token=API_TOKEN)
-    dp = Dispatcher(bot)
     async with aiohttp.ClientSession() as session:
         while True:
             for keyword in KEYWORDS:
