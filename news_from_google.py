@@ -9,7 +9,6 @@ API_TOKEN = os.getenv("API_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 LOG_FILE = 'sent_news.json'
 GOOGLE_SEARCH_URL = 'https://www.google.ru/search?q={}'
-
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 
