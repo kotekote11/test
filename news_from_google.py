@@ -16,9 +16,9 @@ SENT_LIST_FILE = 'dump.json'  # Файл для хранения отправл�
 
 # Ключевые слова
 KEYWORDS = [
-    "открытие фонтанов 2025",
-    "открытие фонтанов 2026",
-    "открытие музыкального фонтана 2025"
+    "рубль 2025",
+    "рубль 2026",
+    "рубль фонтана 2025"
 ]
 
 # Игнорируемые слова и сайты
@@ -55,7 +55,7 @@ async def save_sent_news(sent_news):
 
 async def search_google(session, keyword):
     """Поиск новостей на Google по заданному запросу."""
-    query = f'https://www.google.ru/search?q={keyword}&hl=ru'
+    query = f'https://www.google.ru/search?q={keyword}'
     async with session.get(query) as response:
         response.raise_for_status()
         soup = BeautifulSoup(await response.text(), 'html.parser')
