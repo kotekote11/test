@@ -1,12 +1,21 @@
+import logging
 import subprocess
 import time
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s]: %(message)s",
+    handlers=[logging.StreamHandler()]
+)
+
+logger = logging.getLogger(__name__)
+
 while True:
-    print("Запуск news_from_google.py...")
-    subprocess.run(["python", "news_from_google.py"])
+    logger.info("Запуск news_from_google.py...")
+    subprocess.run(["python", "news_from_google.py"], capture_output=True)
     
-    print("Запуск news_from_yandex.py...")
-    subprocess.run(["python", "news_from_yandex.py"])
+    logger.info("Запуск news_from_yandex.py...")
+    subprocess.run(["python", "news_from_yandex.py"], capture_output=True)
     
-    print("Ожидание перед следующим циклом...")
+    logger.info("Ожидание перед следующим циклом...")
     time.sleep(1300)
