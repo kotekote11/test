@@ -14,8 +14,8 @@ def run_script(script_name):
         logging.error(f'Ошибка при выполнении {script_name}: {e}')
 
 while True:
-    run_script("news_from_google.py")
     run_script("news_from_yandex.py")
+    run_script("news_from_google.py")
     
     logging.info('Ожидание перед следующей итерацией...')
     time.sleep(1300)  # Пауза перед следующей итерацией
