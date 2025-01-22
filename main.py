@@ -1,7 +1,7 @@
+import concurrent.futures
 import logging
+import subprocess
 import time
-from news_from_google import get_news_from_google
-from news_from_yandex import get_news_from_yandex
 
 # Настройка логгера
 logging.basicConfig(
@@ -11,32 +11,24 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Ключевые слова для поиска
-KEYWORDS = [
-    "открытие фонтанов 2025",
-    "открытие фонтанов 2026",
-    "открытие светомузыкального фонтана 2025",
-]
-
-# Обязательные и игнорируемые слова
-MUST_HAVE_WORDS = {"фонтан", "фонтанов", "фонтана"}
-IGNORE_WORDS = {"Петергоф", "нефть", "недр", "месторождение"}
-IGNORE_SITES = {"instagram", "livejournal", "fontanka", "avito"}
-
-def run_news_fetcher(function, keyword):
-    logger.info(f"Запуск {function.__name__}...")
-    news = function(keyword)
-    for title, link in news:
-        if all(word not in title.lower() for word in IGNORE_WORDS) \
-           and not any(site in link for site in IGNORE_SITES) \
-           and any(word in title.lower() for word in MUST_HAVE_WORDS):
-            logger.info(f"{title}: {link}")
+def run_script(script_name):
+    logger.info(f"Запуск {script_name}...")
+    subprocess.run([f"python {script_name}"], capture_output=True)
 
 while True:
-    for keyword in KEYWORDS:
-        run_news_fetcher(get_news_from_google, keyword)
-        run_news_fetcher(get_news_from_yandex, keyword)
-    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        futures = {
+            executor.submit(run_script, "news_from_google.py"): "Google",
+            executor.submit(run_script, "news_from_yandex.py"): "Yandex"
+        }
+
+        for future in concurrent.futures.as_completed(futures):
+            service = futures[future]
+            try:
+                future.result()
+            except Exception as exc:
+                logger.exception(f"Ошибка при выполнении {service}: {exc}")
+
     logger.info("Ожидание перед следующим циклом...")
     time.sleep(1300)
     
