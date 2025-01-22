@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 # Настройки API Telegram
 API_TOKEN = os.getenv("API_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
-SENT_LIST_FILE = 'dump.json'
+SENT_LIST_FILE = 'd1ump.json'
 
 # Ключевые слова для поиска
 KEYWORDS = [   "строительства фонтана 2025",   "строительства фонтана 2026",   "строительства светомузыкального фонтана 2025",   "строительства голографические фонтаны 2025", 
