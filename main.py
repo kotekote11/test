@@ -31,4 +31,3 @@ while True:
 
     logger.info("Ожидание перед следующим циклом...")
     time.sleep(1300)
-    
