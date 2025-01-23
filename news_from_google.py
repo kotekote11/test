@@ -9,8 +9,8 @@ from bs4 import BeautifulSoup
 from urllib.parse import quote
 
 # Настройки логирования
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
-
+#logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG)
 # Настройки API Telegram
 API_TOKEN = os.getenv("API_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
@@ -75,7 +75,7 @@ async def search_yandex(session, keyword):
     ]
     
     headers = {'User-Agent': random.choice(user_agents)}
-    logging.debug(f'Запрашиваем Yandex по адресу: {query} с заголовками: {headers}')
+    logging.debug(f'Запрашиваем #fontan по адресу: {query} с заголовками: {headers}')
     
     async with session.get(query, headers=headers) as response:
         if response.status != 200:
@@ -101,17 +101,17 @@ async def check_news(sem, sent_set):
     async with ClientSession() as session:
         for keyword in random.sample(KEYWORDS, len(KEYWORDS)):  # Перемешиваем KEYWORDS для случайного порядка
             async with sem:
-                logging.info(f'Проверка новостей для: {keyword}')
+                logging.info(f'Проверка новостей #fontan для: {keyword}')
                 
                 news_from_yandex = await search_yandex(session, keyword)
 
                 for title, link in news_from_yandex:
                     if any(ignore in title for ignore in IGNORE_WORDS):
-                        logging.info(f'Игнорируем заголовок: "{title}", так как он содержит игнорируемые слова.')
+                        logging.info(f'Игнорируем заголовок: "{title}", так как он содержит игнорируемые #fontan слова.')
                         continue
                     
                     if any(ignore in link for ignore in IGNORE_SITES):
-                        logging.info(f'Игнорируем ссылку: {link}, так как она содержит игнорируемые сайты.')
+                        logging.info(f'Игнорируем ссылку: {link}, так как она содержит игнорируемые #fontan сайты.')
                         continue
 
                     if link not in sent_set and await check_link_availability(link):
@@ -131,7 +131,7 @@ async def main():
 
     while True:
         await check_news(sem, sent_set)  # Проверка новостей
-        await asyncio.sleep(1300)  # Пауза между проверками
+        #await asyncio.sleep(1300)  # Пауза между проверками
 
 if __name__ == '__main__':
     asyncio.run(main())  # Запускаем основную функцию
