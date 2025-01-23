@@ -1,126 +1,127 @@
-import os
-import json
 import logging
-import asyncio
 import random
 import requests
-from aiohttp import ClientSession
+import json
+import time
 from bs4 import BeautifulSoup
+import os
 
-# Уровень логирования
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
-
-# Настройки API Telegram
 API_TOKEN = os.getenv("API_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
-SENT_LIST_FILE = 'dump.json'
+GOOGLE_SEARCH_URL = 'https://www.google.ru/search?q={}'
+SENT_LIST_FILE = 'sent_news.json'  # Файл для хранения отправленных новостей
 
-# Ключевые слова для поиска
-KEYWORDS = [
-    "Пешеходный  фонтанов 2025",
-    "Пешеходный  фонтанов 2026",
-    "Пешеходный  светомузыкального фонтана 2025",
-]
+# Настройка логирования
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Обязательные и игнорируемые слова
-MUST_HAVE_WORDS = {"фонтан", "фонтанов", "фонтана"}
-IGNORE_WORDS = {"Петергоф", "нефть", "недр", "месторождение"}
-IGNORE_SITES = {"instagram", "livejournal", "fontanka", "avito"}
+def clean_url(url):
+    """Очищает URL от '/url?q=' и лишних параметров после '&sa=U&ved'."""
+    if url.startswith('/url?q='):
+        url = url[len('/url?q='):]
+    if '&sa=U&ved' in url:
+        url = url.split('&sa=U&ved')[0]
+    return url
 
-# Функция для загрузки ранее отправленных ссылок
-def load_sent_list():
-    if os.path.exists(SENT_LIST_FILE):
-        with open(SENT_LIST_FILE, 'r', encoding='utf-8') as file:
+def load_sent_news():
+    """Загружает уже отправленные новости из файла."""
+    try:
+        with open(SENT_LIST_FILE, 'r') as file:
             return json.load(file)
-    return []
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []  # Если файл не существует или пуст, возвращаем пустой список
 
-# Функция для сохранения отправленных ссылок
-def save_sent_list(sent_list):
-    with open(SENT_LIST_FILE, 'w', encoding='utf-8') as file:
-        json.dump(sent_list, file)
+def save_sent_news(sent_news):
+    """Сохраняет уже отправленные новости в файл."""
+    with open(SENT_LIST_FILE, 'w') as file:
+        json.dump(sent_news, file)
 
-# Функция для отправки сообщения в Telegram
-async def send_message(session, message):
+def search_news(query):
+    """Поиск новостей на Google по заданному запросу."""
+    response = requests.get(GOOGLE_SEARCH_URL.format(query))
+    response.raise_for_status()
+    
+    soup = BeautifulSoup(response.text, 'html.parser')
+    news = []
+
+    # Найдем заголовки новостей и ссылки
+    for item in soup.find_all('h3'):
+        title = item.get_text()
+        link = item.find_parent('a')['href']
+        cleaned_link = clean_url(link)
+        
+        # Проверяем, что ссылка рабочая
+        try:
+            if requests.head(cleaned_link).status_code == 200:
+                news.append({'title': title, 'link': cleaned_link})
+        except requests.exceptions.RequestException:
+            logging.warning(f"Некорректная #fontan ссылка: {cleaned_link}")
+
+    logging.debug(f"Найдено новостей: {len(news)}")
+    return news
+
+def send_message(text):
+    """Отправка сообщения в канал."""
     url = f"https://api.telegram.org/bot{API_TOKEN}/sendMessage"
     payload = {
         'chat_id': CHANNEL_ID,
-        'text': message,
-        'parse_mode': 'Markdown'  # Форматирование текста
+        'text': text,
+        'parse_mode': 'HTML'  # Используйте HTML для форматирования
     }
-    async with session.post(url, json=payload) as response:
-        if response.status == 200:
-            logging.info('Сообщение успешно #fontan отправлено.')
-        else:
-            logging.error(f'Ошибка отправки #fontan сообщения: {response.status} - {await response.text()}')
+    try:
+        response = requests.post(url, json=payload)
+        response.raise_for_status()
+        logging.info("Сообщение успешно отправлено.")
+        return True
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Ошибка отправки сообщения: {e}")
+        return False
 
-# Функция для очистки URL
-def clean_url_yandex(url):
-    return url.split('?')[0]
+def send_random_news():
+    """Отправляет одну случайную новость в канал."""
+    keywords = "фонтан открытие"
+    news = search_news(keywords)
 
-# Функция для проверки наличия обязательных слов
-def contains_must_have_words(title):
-    return any(word in title.lower() for word in MUST_HAVE_WORDS)
+    # Загружаем уже отправленные новости
+    sent_news = load_sent_news()
+    sent_titles = [item['title'] for item in sent_news]
 
-# Функция для поиска новостей в Yandex
-async def search_yandex(session, keyword):
-    query = f'https://yandex.ru/search/?text={keyword}&within=77'
-    user_agents = [
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
-        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.1 Safari/605.1.15'
-    ]
-    headers = {'User-Agent': random.choice(user_agents)}
-    logging.debug(f'Запрашиваем #fontan по адресу: {query} с заголовками: {headers}')
-    async with session.get(query, headers=headers) as response:
-        if response.status != 200:
-            logging.error(f'Ошибка при обращении к #fontan: {response.status} для запроса: {query}')
-            return []
-        logging.debug(f'Получен ответ от #fontan: {response.status}')
-        soup = BeautifulSoup(await response.text(), 'html.parser')
-        results = []
+    # Фильтруем новости по заголовкам
+    new_news = [item for item in news if item['title'] not in sent_titles]
 
-        for item in soup.find_all('h2'):
-            parent_link = item.find_parent('a')
-            if parent_link and 'href' in parent_link.attrs:
+    if new_news:
+        random_news = random.choice(new_news)
+        title = random_news['title']
+        link = random_news['link']
+        
+        # Формируем текст сообщения с хештегом #fontan
+        message_text = f"{title}\n{link}\n\n⛲@MonitoringFontan📰#MonitoringFontan"
 
-                link = clean_url_yandex(parent_link['href'])
-                title = item.get_text()
-                logging.debug(f'Найден #fontan заголовок: {title} с ссылкой: {link}')
-                if contains_must_have_words(title):
-                    results.append((title, link))
-        logging.info(f'Найдено {len(results)} результатов для {keyword} в #fontan.')
-        return results
+        # Отправка сообщения
+        if send_message(message_text):
+            # Сохраняем отправленную новость
 
-# Основная функция для проверки новостей
-async def check_news(sem, sent_set):
-    async with ClientSession() as session:
-        for keyword in KEYWORDS:
-            async with sem:
-                logging.info(f'Проверка новостей #fontan: {keyword}')
-                # Получаем новости из Yandex
-                news_from_yandex = await search_yandex(session, keyword)
+            sent_news.append({'title': title, 'link': link})
 
-                for title, link in news_from_yandex:
-                    if any(ignore in title for ignore in IGNORE_WORDS) or any(ignore in link for ignore in IGNORE_SITES):
-                        continue
-                    if link not in sent_set:
-                        sent_set.add(link)
-                        message_text = f"{title}\n{link}\n⛲@MonitoringFontan📰#yandex"
-                        await send_message(session, message_text)
+            save_sent_news(sent_news)
+            logging.info(f"Отправлена новость: {title}")
+    else:
+        logging.info("Нет новых новостей для отправки.")
 
-                # Сохраняем отправленные ссылки после каждой проверки
-                save_sent_list(list(sent_set))
-                await asyncio.sleep(random.randint(5, 15))
-
-# Основная функция
-async def main():
-    sem = asyncio.Semaphore(5)  # Ограничение на количество параллельных запросов
-    sent_set = set(load_sent_list())  # Загружаем уже отправленные ссылки
-
-    while True:
-        await check_news(sem, sent_set)  # Проверка новостей
-        await asyncio.sleep(1111)  # Пауза между проверками (21 минута)
+def cleanup_sent_news(num_of_iterations):
+    """Очищает файл, оставляя только последние 3 записи каждые 90 итераций."""
+    if num_of_iterations % 90 == 0:
+        sent_news = load_sent_news()  # Загружаем все отправленные новости
+        if len(sent_news) > 3:
+            send_news_to_keep = sent_news[-3:]  # Храним только последние 3 записи
+            save_sent_news(send_news_to_keep)  # Сохраняем их в файл
+            logging.info("Очистка старых новостей #fontan завершена, оставлены только последние 3 записи.")
 
 if __name__ == '__main__':
-    asyncio.run(main())  # Запускаем основную функцию
+    num_iterations = 0
+    while True:
+        send_random_news()  # Отправляем новости
+        num_iterations += 1
+
+        cleanup_sent_news(num_iterations)  # Очищаем старые записи при необходимости
+
+        time.sleep(300)  # Пауза перед следующим запросом (5 минут)
